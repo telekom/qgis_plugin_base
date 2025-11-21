@@ -46,8 +46,8 @@ Loadable files from this xml file must be unique over all available templates!
     <plot name="A3 Landscape" file="public1/A3_Landscape.qpt" group=" ">
         <defaults/>
         <icons>
-            <icon name="item_company_icon" file="hamster.png"/>
-            <icon name="item_map_rotation_icon" file="hamster.png"/>
+            <icon name="item_company_icon" file=""/>
+            <icon name="item_map_rotation_icon" file=""/>
         </icons>
     </plot>
 </plots>
