@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # SPDX-FileCopyrightText: 2025 Deutsche Telekom Technik GmbH <f.vonstudsinske@telekom.de>
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: GPL-3.0-only
 
 from qgis.PyQt.QtWidgets import QGraphicsTextItem
 from qgis.PyQt.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
