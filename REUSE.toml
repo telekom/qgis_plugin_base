@@ -19,6 +19,13 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "2025 Deutsche Telekom Technik GmbH <f.vonstudsinske@telekom.de>"
 SPDX-License-Identifier = "GPL-3.0-only"
 
+# All QGIS styling files (*.qml):
+[[annotations]]
+path = ["**/*.qml"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Deutsche Telekom Technik GmbH <f.vonstudsinske@telekom.de>"
+SPDX-License-Identifier = "GPL-3.0-only"
+
 # No special copyrights, e.g. screenshots or config files:
 [[annotations]]
 path = ["**/.gitignore", "docs/ui-file-validation-ignore-name-check.png"]
