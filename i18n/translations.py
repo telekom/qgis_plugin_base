@@ -189,13 +189,9 @@ class TranslationHelper(QMainWindow, FormClass):
         source = element.find("./source")
         translation = element.find("./translation")
 
-        german = QIcon(str(Path(__file__).parent / "germany.png"))
-        destination = QIcon(str(Path(__file__).parent / "destination.png"))
-
         item = QTreeWidgetItem([f"{root.childCount()} // {source.text}"])
         item.setData(0, Qt.UserRole, element)
         item_source = QTreeWidgetItem([source.text])
-        #item_source.setIcon(0, QIcon(german))
         item.addChild(item_source)
 
         if translation is not None:
@@ -213,7 +209,6 @@ class TranslationHelper(QMainWindow, FormClass):
             item.setForeground(0, QColor(0, 0, 0, 255))
 
 
-        item_translation.setIcon(0, QIcon(german))
         item_translation.setFlags(Qt.ItemIsEditable | Qt.ItemIsEnabled)
         item_source.setFlags(Qt.ItemIsEditable | Qt.ItemIsEnabled)
         item_source.setData(0, Qt.UserRole, source)
@@ -222,7 +217,6 @@ class TranslationHelper(QMainWindow, FormClass):
 
 
         root.addChild(item)
-
 
 
 if __name__ == "__main__":
