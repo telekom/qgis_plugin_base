@@ -24,10 +24,9 @@ When called function produced an error, an empty string will be used and the tra
 icons here :)
 <icons>
     keep file empty, to set up no logo
-    telekom and compass are reserved names
     name is the id from layout
-    <icon name="item_company_icon" file="telekom"/>
-    <icon name="item_map_rotation_icon" file="plot_compass.png"/>
+    <icon name="item_company_icon" file="icon.png"/>
+    <icon name="item_map_rotation_icon" file="arrow.png"/>
 </icons>
 
 Expected Folder Structure:
