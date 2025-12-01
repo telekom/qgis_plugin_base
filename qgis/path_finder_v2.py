@@ -7,13 +7,14 @@ import processing
 from enum import auto
 
 from qgis.PyQt.QtCore import QObject
-from qgis.core import (QgsVectorLayer, QgsProcessingException, QgsPointXY, QgsWkbTypes, QgsTracer)
+from qgis.core import (QgsVectorLayer, QgsProcessingException, QgsPointXY, QgsWkbTypes, QgsTracer,
+                       QgsSpatialIndexKDBush, QgsFeatureRequest, QgsFeature, QgsGeometry, QgsFeatureSink)
 from qgis.analysis import (QgsVectorLayerDirector, QgsNetworkDistanceStrategy, QgsNetworkStrategy,
                            QgsGraphBuilder, QgsGraphAnalyzer)
 
 from typing import Optional, List, Dict, Callable, Any
 
-from .geometry import remove_duplicated_points, get_transform
+from .geometry import remove_duplicated_points, get_transform, get_polyline, is_point_on_line
 from ..constants import EPSILON
 from ..enum_ import Enum
 
@@ -34,14 +35,14 @@ class PathFinderMethods(Enum):
     """ Use the implementation from the QgsTracer class with 'QgsTracer.findShortestPath()'. """
 
 
-# TODO OPENSOURCE
-"""
-- Optionale (pre)init-Methode hinzufügen, die den Tracer, ShortestTree Director und Dijkstra Director vorbereiten inkl. Graph?
-- get_fid_route POLY_LINE ist GENAU FID-Route
-- get_containing_fid_route ENTHÄLT  FID-Route (min. zwei Knotenpunkte)
+class PathFinderFidRouteModes(Enum):
+    STRICT = auto()
+    """ "strict" that the found fid route must start and end with the given points. """
 
-
-"""
+    CONTAINS = auto()
+    """ "contains" is less strict to get fids with some overlapping points, 
+        but not fully included in the path.
+    """
 
 
 class PathFinderV2(QObject):
@@ -56,6 +57,8 @@ class PathFinderV2(QObject):
         """ The Path Finder helps to find the shortest/fastest path on a line layer (LineString, not multipart).
             The Path Finder can find the route with different methods from QGIS
             and can find the underlying feature ids from the found polyline list based on equality and intersection.
+
+            This class is reusable as an object, until the used network layer has been changed with geometry data.
 
             :param network_layer: Layer to find the route on (must be a layer from geometry type LineString).
             :param vector_layer_director_params: Additional arguments parsed as kwargs to the QgsVectorLayerDirector.
@@ -126,6 +129,12 @@ class PathFinderV2(QObject):
                 'VALUE_FORWARD': ''}
         else:
             self.__processing_dijkstra_params = processing_dijkstra_params
+        # layer id: spatial index
+        self.__spatial_indices_fid_routes: Dict[str, QgsSpatialIndexKDBush] = {}
+        # layer id: {mem fid: layer fid}
+        self.__mem_feature_id_to_layer_fid_id: Dict[str, Dict[int, int]] = {}
+        # layer id: {layer fid: poly line]
+        self.__layer_fid_to_polyline: Dict[str, Dict[int, List[QgsPointXY]]] = {}
 
     def __get_layer_director_dijkstra(self) -> QgsVectorLayerDirector:
         """ Returns the QgsVectorLayerDirector for the internal Dijkstra solution.
@@ -212,7 +221,7 @@ class PathFinderV2(QObject):
         elif not methods:
             raise ValueError("no methods defined")
 
-        method_mapping: Dict[Callable[[QgsPointXY, QgsPointXY], List[QgsPointXY]]] = {
+        method_mapping: Dict[PathFinderMethods, Callable[[QgsPointXY, QgsPointXY], List[QgsPointXY]]] = {
             PathFinderMethods.Dijkstra: self.get_poly_line_director_dijkstra,
             PathFinderMethods.ProcessingDijkstra: self.get_poly_line_processing_dijkstra,
             PathFinderMethods.Tracer: self.get_poly_line_tracer,
@@ -423,3 +432,141 @@ class PathFinderV2(QObject):
         points, _ = tracer.findShortestPath(start_point, end_point)
 
         return points
+
+    def get_fid_route(self, start_point: QgsPointXY, end_point: QgsPointXY,
+                      origin_layer: Optional[QgsVectorLayer] = None,
+                      methods: Optional[List[PathFinderMethods]] = None,
+                      *,
+                      mode: PathFinderFidRouteModes = PathFinderFidRouteModes.STRICT) -> List[int]:
+        """ Returns a sorted feature id list based on the found path with the start and end point.
+            The start_point and the end_point must be equal to the first
+            or last vertex in the first or last poly line from the fid list.
+
+            :param start_point: Start point for the route.
+            :param end_point: Destination point for the route.
+            :param origin_layer: Optional layer to get the feature ids from. Defaults to the network_layer.
+                                 The CRS must be equal to the network layer.
+            :param methods: Ordered/Prioritized methods to calculate the poly line.
+                            First match results into the found route.
+            :param mode: Mode for coordinates comparison
+        """
+        # get the polyline path from the network layer
+        if not (poly_line := self.get_poly_line(start_point, end_point, methods)):
+            return []
+
+        # layer to use
+        layer = origin_layer or self.__network_layer
+        # get the spatial index to use
+        spatial_index: QgsSpatialIndexKDBush = self.__get_fid_route_spatial_index(layer)
+
+        fid_to_polyline = self.__layer_fid_to_polyline[layer.id()]
+        mem_feature_id_to_layer_fid_id = self.__mem_feature_id_to_layer_fid_id[layer.id()]
+
+        # sorted feature id list from start to end
+        feature_ids: List[int] = []
+        len_poly_line = len(poly_line)
+
+        for index in range(len_poly_line):
+            if index + 1 > len_poly_line - 1:
+                # finished
+                break
+
+            current_point = poly_line[index]
+            next_point = poly_line[index + 1]
+
+            # get the layer fids from the next point
+            next_feature_ids = [
+                mem_feature_id_to_layer_fid_id[next_spatial_data.id]
+                for next_spatial_data in spatial_index.within(next_point, self.__epsilon)]
+
+            for current_spatial_data in spatial_index.within(current_point, self.__epsilon):
+                # get the layer fid from the current iteration
+                current_fid = mem_feature_id_to_layer_fid_id[current_spatial_data.id]
+
+                if current_fid in feature_ids:
+                    # fid already found
+                    continue
+
+                if current_fid not in next_feature_ids:
+                    # fid not available in current and next
+                    continue
+
+                # get the source poly line from the layer and fid
+                current_poly_line = fid_to_polyline[current_fid]
+
+                # current and next point are on the current poly line, then use this feature id
+                # minimum two matches
+                if (is_point_on_line(current_point, current_poly_line, self.__epsilon)
+                        and is_point_on_line(next_point, current_poly_line, self.__epsilon)):
+                    feature_ids.append(current_fid)
+                    break
+
+        if mode == PathFinderFidRouteModes.STRICT:
+            # small post check, if the start is correctly available in the first poly line
+            start_poly_line = fid_to_polyline[feature_ids[0]]
+            if (not start_poly_line[0].compare(start_point, self.__epsilon)
+                    and not start_poly_line[-1].compare(start_point, self.__epsilon)):
+                # poly line from the first fid does not start/end with the given end_point
+                return []
+
+            # small post check, if the end is correctly available in the last poly line
+            end_poly_line = fid_to_polyline[feature_ids[-1]]
+            if (not end_poly_line[0].compare(end_point, self.__epsilon)
+                    and not end_poly_line[-1].compare(end_point, self.__epsilon)):
+                # poly line from the last fid does not start/end with the given end_point
+                return []
+
+        return feature_ids
+
+    def __get_fid_route_spatial_index(self, layer: QgsVectorLayer) -> QgsSpatialIndexKDBush:
+        """ Returns the existing spatial index for this layer or create a new one. """
+        layer_id = layer.id()
+        if layer_id in self.__spatial_indices_fid_routes:
+            # spatial index for this layer already created
+            return self.__spatial_indices_fid_routes[layer_id]
+
+        # request without any attributes, use only the geometries
+        request = QgsFeatureRequest().setNoAttributes()
+
+        # create the memory layer for the spatial index
+        mem_feature_id = 1
+        mem_layer_uri = f"Point?crs={self.__network_layer.dataProvider().crs().authid()}"
+        mem_layer = QgsVectorLayer(mem_layer_uri, "memory", "memory")
+        self.__layer_fid_to_polyline[layer_id] = layer_fid_to_polyline = {}
+        self.__mem_feature_id_to_layer_fid_id[layer_id] = mem_feature_id_to_layer_fid_id= {}
+
+        for feature in layer.getFeatures(request):
+
+            # feature id
+            layer_fid = feature.id()
+            # get the feature's geometry
+            geometry = feature.geometry()
+            if geometry.isEmpty() or geometry.isNull():
+                # skip this feature
+                continue
+
+            # get the poly line
+            poly_line = get_polyline(geometry)
+            layer_fid_to_polyline[layer_fid] = poly_line
+
+            # add per vertex a point feature
+            for point in poly_line:
+                # create the feature for the memory layer
+                mem_feature = QgsFeature(mem_feature_id)
+                mem_feature.setGeometry(QgsGeometry.fromPointXY(point))
+                mem_feature_id_to_layer_fid_id[mem_feature_id] = layer_fid
+                mem_layer.dataProvider().addFeature(mem_feature, QgsFeatureSink.FastInsert)
+
+                mem_feature_id += 1
+
+        if mem_layer.featureCount() < 1:
+            raise ValueError(f"the memory layer is empty, no features available. "
+                             f"The source layer's id is '{layer_id}'")
+
+        # create the spatial index
+        spatial = QgsSpatialIndexKDBush(mem_layer)
+
+        # store the spatial index
+        self.__spatial_indices_fid_routes[layer_id] = spatial
+
+        return spatial
