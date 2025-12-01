@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
-# (C) 2025 Deutsche Telekom Technik GmbH
-# Author: Felix von Studsinske (f.vonstudsinske / GitHub: felixvons)
-# License: GNU GPL v3
+# SPDX-FileCopyrightText: 2025 Deutsche Telekom Technik GmbH <f.vonstudsinske@telekom.de>
+# SPDX-License-Identifier: GPL-3.0-only
 
 import pytest
 from pathlib import Path

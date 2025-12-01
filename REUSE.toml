@@ -28,7 +28,7 @@ SPDX-License-Identifier = "GPL-3.0-only"
 
 # No special copyrights, e.g. screenshots or config files:
 [[annotations]]
-path = ["**/.gitignore", "docs/ui-file-validation-ignore-name-check.png"]
+path = ["**/.gitignore", "docs/ui-file-validation-ignore-name-check.png", "tests/test_path_finder_v2.geojson"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "NONE"
 SPDX-License-Identifier = "GPL-3.0-only"
