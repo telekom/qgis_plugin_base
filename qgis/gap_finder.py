@@ -48,7 +48,7 @@ class CheckTypes(Enum):
 class GapFinder(QObject):
     """ Class to find gaps in given features/layer and create a point layer
 
-        Example from Python Console with Plan[Goo] V2:
+        Example from Python Console:
 
             .. code-block:: python
 
