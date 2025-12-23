@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2023 Deutsche Telekom AG
+SPDX-FileCopyrightText: 2025 Deutsche Telekom AG
 
 SPDX-License-Identifier: CC0-1.0    
 -->
@@ -12,14 +12,43 @@ SPDX-License-Identifier: CC0-1.0
 
 ## About
 
-my-sample-project is a ...
-<!-- TODO: Finish this sentence by describing what the project does. This here should only be one sentence -->
+A code base with usefull code and test examples, which a QGIS plugin can use.
 
-The main use cases of my-sample-project are
-- ....
-- ....
-- ....
-<!-- TODO: Add here the project's main use cases. -->
+## QGIS Version
+
+A lot of the available functions may work only with the latest QGIS LTR version.
+
+Last tested with QGIS version: 3.40.7
+
+## Technical Depths
+
+- a lot of error messages are written in German
+- a lot of docstrings and comments are written in German
+- missing tests (current intention is not to add blindly a lot of test, only when it is necessary for already available functions.)
+  - tests required for new functions
+- Some code is related to the Windows OS
+
+## Test Automation with pytest
+
+Some tests may require a different setup or must fulfill some requirements.
+
+Do not use the pytest plugin `pytest-qgis`. This may result in some mock issues.
+
+### Environment Variable `QGIS_PYTEST_AUTHENTICATION_CONFIG_DIR`
+
+Using the fixture `plugin_qgis_new_project` from [./tests/fixtures.py](./tests/fixtures.py) can use the OS environment variable `QGIS_PYTEST_AUTHENTICATION_CONFIG_DIR` 
+to load authentication configuration files to the temporary QGIS instance.
+
+If set the variable value should point to an existing directory with un-encrypted config files (XML).
+
+Example value: `C:/dev/.pytest-qgis-credentials`
+
+Example structure:
+
+* C:/dev/.pytest-qgis-credentials
+  * credentials-gdi-basic-auth.xml (not encrypted)
+
+Maybe some tests require this variable to be set.
 
 ## Code of Conduct
 
@@ -28,7 +57,7 @@ This project has adopted the [Contributor Covenant](https://www.contributor-cove
 By participating in this project, you agree to abide by its [Code of Conduct](./CODE_OF_CONDUCT.md) at all times.
 
 ## Licensing
-Copyright (c) XXXX Deutsche Telekom AG
+Copyright (c) 2025 Deutsche Telekom AG
 
 All content in this repository is licensed under at least one of the licenses found in [./LICENSES](./LICENSES); you may not use this file, or any other file in this repository, except in compliance with the Licenses. 
 You may obtain a copy of the Licenses by reviewing the files found in the [./LICENSES](./LICENSES) folder.

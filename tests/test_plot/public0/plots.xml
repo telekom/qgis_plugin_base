@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+SPDX-FileCopyrightText: 2025 Deutsche Telekom Technik GmbH <f.vonstudsinske@telekom.de>
+
+SPDX-License-Identifier: GPL-3.0-only
+-->
+<!--
+default values for edit fields
+you can defined callable functions/methods or default values here.
+These defaults are loaded for the whole plot layer as default on creation.
+Later calls are not planned.
+label is the id from layout
+type can be function or value.
+    When type is "function", then the a function will be called from plot_functions.py with parameters
+
+defaults can be used on QgsLayoutItemPicture and QgsLayoutItemLabel
+When you are using default values, keep in mind:
+    if entered QLineEdit text value is empty, then default function will be called
+When called function produced an error, an empty string will be used and the traceback will be logged.
+<defaults>
+    <default label="item_page_text_planer" type="function" value="call_this_function"/>
+</defaults>
+
+icons here :)
+<icons>
+    keep file empty, to set up no logo
+    name is the id from layout
+    <icon name="item_company_icon" file="icon.png"/>
+    <icon name="item_map_rotation_icon" file="arrow.png"/>
+</icons>
+
+Expected Folder Structure:
+- layout1.qpt [requried]
+- layout2.qpt [requried]
+- plots.xml [requried]
+- icon1.png [optional, depends on definition in plots.xml]
+- icon2.png [optional, depends on definition in plots.xml]
+One folder per template "group".
+Loadable files from this xml file must be unique over all available templates!
+
+-->
+<plots>
+    <!--<plot name="" file="" group=""/>-->
+    <!-- keep file attribute over all templates unique -->
+    <plot name="A3 Landscape 1" file="public0/A3_Landscape_1.qpt" group=" ">
+        <defaults/>
+        <icons>
+            <icon name="item_company_icon" file=""/>
+            <icon name="item_map_rotation_icon" file=""/>
+        </icons>
+    </plot>
+    <plot name="A3 Landscape 2" file="public0/A3_Landscape_2.qpt" group=" ">
+        <defaults/>
+        <icons>
+            <icon name="item_company_icon" file=""/>
+            <icon name="item_map_rotation_icon" file=""/>
+        </icons>
+    </plot>
+</plots>
