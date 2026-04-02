@@ -135,7 +135,7 @@ def generate(file: Path) -> Path:
 
 
 def get_expected_plugin_path() -> Path:
-    """ Returns the expted plugin path.
+    """ Returns the expected plugin path.
         This git-submodule must be included correctly in the plugin structure.
         Otherwise, the returned path may not be correct or can fail.
 
@@ -181,7 +181,7 @@ def get_relative_path(path: Path) -> Optional[str]:
 
 def get_python_plugins_paths() -> List[Path]:
     """ Returns a list of python plugin paths.
-        Returned list if empty, if the QgsApplication instance is missing.
+        The returned list is empty if the QgsApplication instance is missing.
         First value in list (index 0) points to the user profile directory,
         the second value to the core plugin path and all other values are the existing
         paths from the QGIS environment variable QGIS_PLUGINPATH.
@@ -198,7 +198,7 @@ def get_python_plugins_paths() -> List[Path]:
     ]
 
     # get the paths from the environment variable
-    env_qgis_plugin_path = os.environ.get("QGIS_PLUGINPATH", "").split(";")
+    env_qgis_plugin_path = os.environ.get("QGIS_PLUGINPATH", "").split(os.pathsep)
     # filter out empty strings
     paths.extend(map(Path, filter(str.strip, env_qgis_plugin_path)))
 
