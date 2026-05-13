@@ -119,7 +119,8 @@ class ModuleBase(Logging):
         self._filters: List[QgsLocatorFilter] = []
 
         # ui relevant attributes
-        self._toolbars_managed: Dict[str, Tuple[QToolBar, List[QAction]]] = {}  # {'toolbars object name': [action objects]}
+        # {'toolbars object name': [action objects]}
+        self._toolbars_managed: Dict[str, Tuple[QToolBar, List[QAction]]] = {}
         self._actions: List[QAction] = []
         self._actions_managed: List[QAction] = []
         self._tool_buttons: List[QToolButton] = []
@@ -342,24 +343,18 @@ class ModuleBase(Logging):
 
         return action
     
-    def add_tool_button(self, name: str, icon: QIcon, callback_action: Optional[Callable],
-                        *,
+    def add_tool_button(self, *,
                         manage: bool = False,
                         toolbar_name: Optional[str] = None,
                         toolbar_displayname: Optional[str] = None,
-                        to_plugin_menu: bool = True,
                         init_enabled: bool = True,
                         tool_tip: str = "") -> QToolButton:
         """ Adds a new QToolButton with the given name and icon (and optional callback) to the module.
 
-            :param name: visual button name for user
-            :param icon: icon path, empty string means no icon
             :param manage: should the action should be "registered as managed" action for this module?
-            :param callback_action: function/method/lambda to call or explicit None
             :param toolbar_name: object name for QToolBar
             :param toolbar_displayname: visual toolbar name for hide and show.
                                         only necessary, when no new bar is needed
-            :param to_plugin_menu: Add to plugin menu bar in the QGIS Python plugin menu
             :param init_enabled: init enable state, defaults to True
             :param tool_tip: tool tip string
 
@@ -1255,7 +1250,7 @@ class UiModuleBase(ModuleBase):
                 # Apply additional frame styling for certain widget types when enhanced borders are enabled
                 # This is needed because some widgets can't have bigger borders by default
                 if (widget_type in (QListWidget, QTreeWidget, QListView, QTreeView, QTableView, QTextBrowser, QTextEdit)
-                    and enhanced_borders):
+                        and enhanced_borders):
                     widget.setFrameShape(QListWidget.WinPanel)
 
     def add_subcomponent_module(self,
@@ -1673,7 +1668,8 @@ class UiModuleBase(ModuleBase):
             FORM_CLASS, _ = UiModuleBase.get_uic_classes(__file__)
             FORM_CLASS: 'Ui'
             try:
-                from .my_cool_plugin_generated_ui import Ui as FORM_CLASS # overwrite FORM_CLASS for type hinting, use your module instead of 'my_cool_plugin'
+                from .my_cool_plugin_generated_ui import Ui as FORM_CLASS
+                # overwrite FORM_CLASS for type hinting, use your module instead of 'my_cool_plugin'
 
             except ModuleNotFoundError:
                 pass
@@ -1789,7 +1785,8 @@ class UiModuleBase(ModuleBase):
         """
         len_ = len(self._tab_order_widgets)
         index = self._tab_order_widgets.index(widget_behind)
-        self._tab_order_widgets = self._tab_order_widgets[:min(index + 1, len_)] + widgets + self._tab_order_widgets[min(index + 1, len_):]
+        self._tab_order_widgets = (self._tab_order_widgets[:min(index + 1, len_)] + widgets
+                                   + self._tab_order_widgets[min(index + 1, len_):])
 
     def insert_tab_stop_widgets_before(self, widget_before: QWidget, widgets: List[QWidget]):
         """ Inserts the given widgets before the `widget_before` on defined widgets.
