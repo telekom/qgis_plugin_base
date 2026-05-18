@@ -122,9 +122,7 @@ class ModuleBase(Logging):
         # {'toolbars object name': [action objects]}
         self._toolbars_managed: Dict[str, Tuple[QToolBar, List[QAction]]] = {}
         self._actions: List[QAction] = []
-        self._actions_managed: List[QAction] = []
         self._tool_buttons: List[QToolButton] = []
-        self._tool_buttons_managed: List[QToolButton] = []
 
         self.__unloaded = False
         self.unloaded = self.__unloaded
@@ -278,7 +276,6 @@ class ModuleBase(Logging):
 
     def add_action(self, name: str, icon: QIcon, callback_action: Optional[Callable],
                    *,
-                   manage: bool = False,
                    toolbar_name: Optional[str] = None,
                    toolbar_displayname: Optional[str] = None,
                    to_plugin_menu: bool = True,
@@ -290,7 +287,6 @@ class ModuleBase(Logging):
 
             :param name: visual action name for user
             :param icon: icon path, empty string means no icon
-            :param manage: should the action should be "registered as managed" action for this module?
             :param callback_action: function/method/lambda to call or explicit None
             :param toolbar_name: object name for QToolBar
             :param toolbar_displayname: visual toolbar name for hide and show.
@@ -336,20 +332,16 @@ class ModuleBase(Logging):
                 raise AttributeError(f"{self.get_plugin()} has no attribute `plugin_menu_name`")
             iface.addPluginToMenu(getattr(self.get_plugin(), 'plugin_menu_name'), action)
 
-        if manage:
-            self._actions_managed.append(action)
-
         self._actions.append(action)
 
         return action
     
     def add_tool_button(self, *,
-                        manage: bool = False,
                         toolbar_name: Optional[str] = None,
                         toolbar_displayname: Optional[str] = None,
                         init_enabled: bool = True,
                         tool_tip: str = "") -> QToolButton:
-        """ Adds a new QToolButton with the given name and icon (and optional callback) to the module.
+        """ Adds a new QToolButton to the module.
 
             :param manage: should the action should be "registered as managed" action for this module?
             :param toolbar_name: object name for QToolBar
@@ -379,9 +371,6 @@ class ModuleBase(Logging):
             toolbar = self.get_toolbar(toolbar_displayname, toolbar_name, widget)
             toolbar.addWidget(tool_button)
             self._toolbars_managed[toolbar_name][1].append(tool_button)
-
-        if manage:
-            self._tool_buttons_managed.append(tool_button)
 
         self._tool_buttons.append(tool_button)
 
@@ -433,14 +422,6 @@ class ModuleBase(Logging):
             ...
 
         return module
-
-    def disable_managed_actions(self):
-        for action in self._actions_managed:
-            action.setEnabled(False)
-
-    def enable_managed_actions(self):
-        for action in self._actions_managed:
-            action.setEnabled(True)
 
     def get_icon_path(self, icon: str, folder: Optional[str] = None) -> str:
         """ Returns joined os path from icons folder.
@@ -555,35 +536,23 @@ class ModuleBase(Logging):
         self._filters.append(filter_)
         self.iface.registerLocatorFilter(filter_)
 
-    def remove_actions(self, only_managed: bool = False):
+    def remove_actions(self):
         """ Removes actions from all toolbars.
             Empty toolbars will be removed too.
-
-         :param only_managed: Set to True to remove only "managed" actions from toolbars.
-
         """
         for toolbar_name in list(self._toolbars_managed):
-            self.unload_toolbar(toolbar_name, only_managed)
+            self.unload_toolbar(toolbar_name)
 
-    def unload_toolbar(self, toolbar_object_name: str, only_managed: bool = False):
+    def unload_toolbar(self, toolbar_object_name: str):
         """ Unloads all actions from given toolbar name.
             Does nothing, if object name is not in the toolbar's list.
 
             :param toolbar_object_name: Toolbar's object name.
-            :param only_managed: Set to True to remove only "managed" actions from toolbars.
         """
         if toolbar_object_name not in self._toolbars_managed:
             return
 
         toolbar, actions = self._toolbars_managed[toolbar_object_name]
-
-        # create list of not deleted actions
-        self._actions_managed = [action for action in self._actions_managed
-                                 if not sip.isdeleted(action)]
-        
-        # create list of not deleted tool buttons
-        self._tool_buttons_managed = [button for button in self._tool_buttons_managed
-                                      if not sip.isdeleted(button)]
 
         if sip.isdeleted(toolbar):
             # c++ already deleted?
@@ -593,12 +562,6 @@ class ModuleBase(Logging):
 
             if sip.isdeleted(action):
                 actions.remove(action)
-                continue
-
-            # if only_managed is True check if the object is in the managed lists
-            if (only_managed 
-                    and action not in self._actions_managed
-                    and action not in self._tool_buttons_managed):
                 continue
 
             actions.remove(action)

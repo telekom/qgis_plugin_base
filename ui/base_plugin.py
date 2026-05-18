@@ -180,7 +180,6 @@ class Plugin(ModuleBase, QObject):
             f"Neue Version installieren",
             self.getThemeIcon("propertyicons/plugin-upgrade.svg"),
             lambda: self.ask_for_new_installation(),
-            manage=False,
             tool_tip="Plugin aktualisieren")
 
         self.updateAvailable.emit()
