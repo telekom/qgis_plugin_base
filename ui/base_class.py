@@ -25,7 +25,7 @@ from qgis.PyQt.QtWidgets import (QAction, QWidget, QFrame, QLabel, QApplication,
                                  QMessageBox, QPushButton, QToolTip, QLineEdit,
                                  QCheckBox, QSpinBox, QListWidget, QTreeWidget,
                                  QTableWidget, QTextBrowser, QTextEdit, QListView,
-                                 QTreeView, QTableView, QRadioButton)
+                                 QTreeView, QTableView, QRadioButton, QToolButton, QMenu)
 from qgis.PyQt.QtGui import QIcon, QCursor, QDesktopServices
 from qgis.PyQt import uic
 from pyplugin_installer import installer as pyplugin_installer
@@ -119,9 +119,10 @@ class ModuleBase(Logging):
         self._filters: List[QgsLocatorFilter] = []
 
         # ui relevant attributes
-        self._toolbars_managed: Dict[str, Tuple[QToolBar, List[QAction]]] = {}  # {'toolbars object name': [action objects]}
+        # {'toolbars object name': [action objects]}
+        self._toolbars_managed: Dict[str, Tuple[QToolBar, List[QAction]]] = {}
         self._actions: List[QAction] = []
-        self._actions_managed: List[QAction] = []
+        self._tool_buttons: List[QToolButton] = []
 
         self.__unloaded = False
         self.unloaded = self.__unloaded
@@ -228,7 +229,7 @@ class ModuleBase(Logging):
                                 "This is a approximate hint to let you fix your issue")
 
     @staticmethod
-    def show_cursor_tool_tip( text: str):
+    def show_cursor_tool_tip(text: str):
         """ Shows the given text as tooltip on the current cursor position.
 
             :param text: Tooltip text to show
@@ -275,17 +276,17 @@ class ModuleBase(Logging):
 
     def add_action(self, name: str, icon: QIcon, callback_action: Optional[Callable],
                    *,
-                   manage: bool = False,
                    toolbar_name: Optional[str] = None,
                    toolbar_displayname: Optional[str] = None,
                    to_plugin_menu: bool = True,
                    init_enabled: bool = True,
-                   tool_tip: str = "") -> QAction:
+                   tool_tip: str = "",
+                   tool_button: Optional[QToolButton] = None,
+                   is_tool_button_default: bool = False) -> QAction:
         """ Adds a new QAction with the given name and icon (and optional callback) to the module.
 
             :param name: visual action name for user
             :param icon: icon path, empty string means no icon
-            :param manage: should the action should be "registered as managed" action for this module?
             :param callback_action: function/method/lambda to call or explicit None
             :param toolbar_name: object name for QToolBar
             :param toolbar_displayname: visual toolbar name for hide and show.
@@ -293,6 +294,8 @@ class ModuleBase(Logging):
             :param to_plugin_menu: Add to plugin menu bar in the QGIS Python plugin menu
             :param init_enabled: init enable state, defaults to True
             :param tool_tip: tool tip string
+            :param tool_button: The QToolButton the action should be added to.
+            :param is_tool_button_default: Sets the QToolButton default action to the created action.
 
             :return: new created QAction
         """
@@ -310,10 +313,18 @@ class ModuleBase(Logging):
         action.setToolTip(tool_tip)
 
         # Anzeige- sowie Objektname der Toolbar (Werkzeugleiste) sind vorhanden
-        if toolbar_displayname and toolbar_name:
+        if toolbar_displayname and toolbar_name and not tool_button:
             toolbar = self.get_toolbar(toolbar_displayname, toolbar_name, widget)
             toolbar.addAction(action)
             self._toolbars_managed[toolbar_name][1].append(action)
+
+        if tool_button:
+            menu = tool_button.menu()
+            if not menu:
+                raise AttributeError(f"{tool_button} has no attribute `menu`")
+            menu.addAction(action)
+            if is_tool_button_default:
+                tool_button.setDefaultAction(action)
 
         if to_plugin_menu:
             from qgis.utils import iface
@@ -321,12 +332,48 @@ class ModuleBase(Logging):
                 raise AttributeError(f"{self.get_plugin()} has no attribute `plugin_menu_name`")
             iface.addPluginToMenu(getattr(self.get_plugin(), 'plugin_menu_name'), action)
 
-        if manage:
-            self._actions_managed.append(action)
-
         self._actions.append(action)
 
         return action
+    
+    def add_tool_button(self, *,
+                        toolbar_name: Optional[str] = None,
+                        toolbar_displayname: Optional[str] = None,
+                        init_enabled: bool = True,
+                        tool_tip: str = "") -> QToolButton:
+        """ Adds a new QToolButton to the module.
+
+            :param toolbar_name: object name for QToolBar
+            :param toolbar_displayname: visual toolbar name for hide and show.
+                                        only necessary, when no new bar is needed
+            :param init_enabled: init enable state, defaults to True
+            :param tool_tip: tool tip string
+
+            :return: new created QToolButton
+        """
+        from qgis.utils import iface
+
+        if iface is not None:
+            widget = iface.mainWindow()
+        else:
+            widget = None
+
+        tool_button: QToolButton = QToolButton(widget)
+        tool_button.setAutoRaise(True)
+        tool_button.setPopupMode(QToolButton.MenuButtonPopup)
+        tool_button.setEnabled(init_enabled)
+        tool_button.setToolTip(tool_tip)
+        tool_button.setMenu(QMenu(tool_button))
+
+        # Anzeige- sowie Objektname der Toolbar (Werkzeugleiste) sind vorhanden
+        if toolbar_displayname and toolbar_name:
+            toolbar = self.get_toolbar(toolbar_displayname, toolbar_name, widget)
+            toolbar.addWidget(tool_button)
+            self._toolbars_managed[toolbar_name][1].append(tool_button)
+
+        self._tool_buttons.append(tool_button)
+
+        return tool_button
 
     def add_module(self, keyword: str, module_class: Type[MB], parent: Optional[QWidget] = None, *args: list,
                    **kwargs) -> MB:
@@ -374,14 +421,6 @@ class ModuleBase(Logging):
             ...
 
         return module
-
-    def disable_managed_actions(self):
-        for action in self._actions_managed:
-            action.setEnabled(False)
-
-    def enable_managed_actions(self):
-        for action in self._actions_managed:
-            action.setEnabled(True)
 
     def get_icon_path(self, icon: str, folder: Optional[str] = None) -> str:
         """ Returns joined os path from icons folder.
@@ -496,31 +535,23 @@ class ModuleBase(Logging):
         self._filters.append(filter_)
         self.iface.registerLocatorFilter(filter_)
 
-    def remove_actions(self, only_managed: bool = False):
+    def remove_actions(self):
         """ Removes actions from all toolbars.
             Empty toolbars will be removed too.
-
-         :param only_managed: Set to True to remove only "managed" actions from toolbars.
-
         """
         for toolbar_name in list(self._toolbars_managed):
-            self.unload_toolbar(toolbar_name, only_managed)
+            self.unload_toolbar(toolbar_name)
 
-    def unload_toolbar(self, toolbar_object_name: str, only_managed: bool = False):
+    def unload_toolbar(self, toolbar_object_name: str):
         """ Unloads all actions from given toolbar name.
             Does nothing, if object name is not in the toolbar's list.
 
             :param toolbar_object_name: Toolbar's object name.
-            :param only_managed: Set to True to remove only "managed" actions from toolbars.
         """
         if toolbar_object_name not in self._toolbars_managed:
             return
 
         toolbar, actions = self._toolbars_managed[toolbar_object_name]
-
-        # cleanup actions
-        self._actions_managed = [action for action in self._actions_managed
-                                 if not sip.isdeleted(action)]
 
         if sip.isdeleted(toolbar):
             # c++ already deleted?
@@ -532,20 +563,23 @@ class ModuleBase(Logging):
                 actions.remove(action)
                 continue
 
-            if only_managed:
-                if action in self._actions_managed:
-                    self._actions_managed.remove(action)
-                    actions.remove(action)
-                    toolbar.removeAction(action)
-            else:
-                actions.remove(action)
+            actions.remove(action)
+
+            # actions can be directly removed
+            if isinstance(action, QAction):
                 toolbar.removeAction(action)
+            # if the object is a tool button, get all the actions and their widgets, find the right one and remove it
+            elif isinstance(action, QToolButton):
+                for ac in toolbar.actions():
+                    if toolbar.widgetForAction(ac) is action:
+                        toolbar.removeAction(ac)
+                        break
 
         if toolbar.actions():
             # return here to keep remaining actions visible
             return
 
-            # toolbar is empty, remove it
+        # toolbar is empty, remove it
         if parent := toolbar.parent():
             parent.removeToolBar(toolbar)
 
@@ -1178,7 +1212,7 @@ class UiModuleBase(ModuleBase):
                 # Apply additional frame styling for certain widget types when enhanced borders are enabled
                 # This is needed because some widgets can't have bigger borders by default
                 if (widget_type in (QListWidget, QTreeWidget, QListView, QTreeView, QTableView, QTextBrowser, QTextEdit)
-                    and enhanced_borders):
+                        and enhanced_borders):
                     widget.setFrameShape(QListWidget.WinPanel)
 
     def add_subcomponent_module(self,
@@ -1596,7 +1630,8 @@ class UiModuleBase(ModuleBase):
             FORM_CLASS, _ = UiModuleBase.get_uic_classes(__file__)
             FORM_CLASS: 'Ui'
             try:
-                from .my_cool_plugin_generated_ui import Ui as FORM_CLASS # overwrite FORM_CLASS for type hinting, use your module instead of 'my_cool_plugin'
+                from .my_cool_plugin_generated_ui import Ui as FORM_CLASS
+                # overwrite FORM_CLASS for type hinting, use your module instead of 'my_cool_plugin'
 
             except ModuleNotFoundError:
                 pass
@@ -1712,7 +1747,8 @@ class UiModuleBase(ModuleBase):
         """
         len_ = len(self._tab_order_widgets)
         index = self._tab_order_widgets.index(widget_behind)
-        self._tab_order_widgets = self._tab_order_widgets[:min(index + 1, len_)] + widgets + self._tab_order_widgets[min(index + 1, len_):]
+        self._tab_order_widgets = (self._tab_order_widgets[:min(index + 1, len_)] + widgets
+                                   + self._tab_order_widgets[min(index + 1, len_):])
 
     def insert_tab_stop_widgets_before(self, widget_before: QWidget, widgets: List[QWidget]):
         """ Inserts the given widgets before the `widget_before` on defined widgets.
