@@ -343,7 +343,6 @@ class ModuleBase(Logging):
                         tool_tip: str = "") -> QToolButton:
         """ Adds a new QToolButton to the module.
 
-            :param manage: should the action should be "registered as managed" action for this module?
             :param toolbar_name: object name for QToolBar
             :param toolbar_displayname: visual toolbar name for hide and show.
                                         only necessary, when no new bar is needed
@@ -364,7 +363,7 @@ class ModuleBase(Logging):
         tool_button.setPopupMode(QToolButton.MenuButtonPopup)
         tool_button.setEnabled(init_enabled)
         tool_button.setToolTip(tool_tip)
-        tool_button.setMenu(QMenu(widget))
+        tool_button.setMenu(QMenu(tool_button))
 
         # Anzeige- sowie Objektname der Toolbar (Werkzeugleiste) sind vorhanden
         if toolbar_displayname and toolbar_name:
