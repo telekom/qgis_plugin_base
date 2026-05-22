@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # SPDX-FileCopyrightText: 2025 Deutsche Telekom Technik GmbH <f.vonstudsinske@telekom.de>
 # SPDX-License-Identifier: GPL-3.0-only
+import os
 
 from pathlib import Path
 from datetime import datetime
@@ -11,7 +12,7 @@ from qgis.PyQt import QtWidgets
 from qgis.PyQt import uic
 from qgis.core import QgsApplication
 
-from typing import Optional
+from typing import Optional, List
 
 from ..constants import STYLE_SHEET_NEUTRAL, STYLE_SHEET_WARNING, STYLE_SHEET_ERROR, STYLE_SHEET_SUCCESS
 
@@ -133,34 +134,18 @@ def generate(file: Path) -> Path:
     return pyfile
 
 
-def get_expected_plugin_path() -> Optional[Path]:
-    """ Returns the expected plugin path in the QGIS profile python plugin folder.
-        Returns None, if no folder found or no QgsApplication.instance() is active.
+def get_expected_plugin_path() -> Path:
+    """ Returns the expected plugin path.
+        This git-submodule must be included correctly in the plugin structure.
+        Otherwise, the returned path may not be correct or can fail.
 
-        <qgis profile>/plugins/python/<plugin folder>
+        <qgis profile>/plugins/python/<plugin folder> {/submodules/base/ui/functions.py}
 
     """
-    if QgsApplication.instance() is None:
-        return None
 
-    profile_plugin_path = Path(QgsApplication.qgisSettingsDirPath()) / 'python' / 'plugins'
-    if not profile_plugin_path.is_dir():
-        return None
+    path = Path(__file__).parent.parent.parent.parent
 
-    file = Path(__file__)
-
-    posix_profile_plugin_path = profile_plugin_path.as_posix()
-    posix_file = file.as_posix()
-
-    relative_path = posix_file.replace(posix_profile_plugin_path, "")[1:]
-
-    plugin_folder_name = relative_path.split("/")[0]
-
-    plugin_path = profile_plugin_path / plugin_folder_name
-    if not plugin_path.is_dir():
-        return None
-
-    return profile_plugin_path / plugin_folder_name
+    return path
 
 
 def get_expected_plugin_folder_name() -> Optional[str]:
@@ -184,8 +169,9 @@ def get_relative_path(path: Path) -> Optional[str]:
             relative_path = get_relative_path(path)
             print(relative_path)  # -> "/<plugin folder>/modules/animal/roflcopter.py"
     """
-    if not (root := get_expected_plugin_path()):
-        return None
+
+    # get the parent directory of the plugin
+    root = get_expected_plugin_path().parent
 
     root_posix = root.as_posix()
     path_posix = path.as_posix()
@@ -193,14 +179,39 @@ def get_relative_path(path: Path) -> Optional[str]:
     return path_posix.replace(root_posix, "")
 
 
+def get_python_plugins_paths() -> List[Path]:
+    """ Returns a list of python plugin paths.
+        The returned list is empty if the QgsApplication instance is missing.
+        First value in list (index 0) points to the user profile directory,
+        the second value to the core plugin path and all other values are the existing
+        paths from the QGIS environment variable QGIS_PLUGINPATH.
+        Paths from the QGIS_PLUGINPATH environment variable will only be added and not checked.
+    """
+    if QgsApplication.instance() is None:
+        # no instance active, empty list
+        return []
+
+    # base paths for qgis plugins
+    paths = [
+        Path(QgsApplication.qgisSettingsDirPath()) / 'python' / 'plugins',
+        Path(QgsApplication.prefixPath()) / 'python' / 'plugins'
+    ]
+
+    # get the paths from the environment variable
+    env_qgis_plugin_path = os.environ.get("QGIS_PLUGINPATH", "").split(os.pathsep)
+    # filter out empty strings
+    paths.extend(map(Path, filter(str.strip, env_qgis_plugin_path)))
+
+    return paths
+
+
 def is_installed_in_qgis_plugin_folder() -> bool:
-    """ Is this plugin the the QGIS plugin folder """
-    if not (root := get_expected_plugin_path()):
-        return False
+    """ Is this plugin in the QGIS plugin folder (qgis plugins, user profile plugins or plugin paths) """
+    # parent directory of this plugin
+    root = get_expected_plugin_path().parent
 
-    path = Path(QgsApplication.qgisSettingsDirPath()) / 'python' / 'plugins'
-
-    return root.parent == path
+    # first comes, first serves
+    return any(map(lambda path: path == root, get_python_plugins_paths()))
 
 
 def get_ui_class(ui_file: str | Path) -> str | None:
