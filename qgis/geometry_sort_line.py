@@ -8,7 +8,7 @@ from qgis.core import (QgsPointXY, QgsGeometry, QgsFeature, QgsPoint, QgsFeature
                        QgsVectorLayer, QgsWkbTypes, QgsFeatureRequest)
 
 from .geometry import get_polyline
-from ..constants import EPSILON, N_LEFT, N_RIGHT, N_LEFT_REVERSED, N_NONE, N_RIGHT_REVERSED
+from ..constants import EPSILON, N_LEFT, N_RIGHT, N_LEFT_REVERSED, N_NONE, N_RIGHT_REVERSED, TO_STRING_PREC
 
 
 def adjacent_to_geometry(poly_lines: List[List[QgsPointXY]], epsilon: float = EPSILON) -> List[QgsGeometry]:
@@ -309,6 +309,129 @@ def sort_and_group_features(features: Union[List[QgsFeature], QgsFeatureIterator
     result = grouper.run()
 
     return result
+
+
+def realign_feature_geometries(features: Union[List[QgsFeature], QgsFeatureIterator],
+                               start_point: Optional[QgsPointXY] = None,
+                               epsilon: float = EPSILON) -> List[QgsFeature]:
+    """ Returns a list with keeping the features order, but may realign the poly line.
+        The given feature list is already sorted.
+        Only the given geometry per feature may be reversed from the vertices to re-align the poly line
+        to the next and previous feature.
+        The given feature list and features will be updated in a mutable way!
+
+        .. code-block:: python
+
+            # geom_1 is the START line
+            geom_1 = QgsGeometry.fromWkt('LineString (0.0 0.0, 1.0 0.0)')
+            geom_2 = QgsGeometry.fromWkt('LineString (1.0 0.0, 2.0 0.0)')
+            geom_3 = QgsGeometry.fromWkt('LineString (3.0 0.0, 2.0 0.0)')  # reversed geom_3
+            geom_4 = QgsGeometry.fromWkt('LineString (3.0 0.0, 4.0 0.0)')
+
+            # becomes the following geomtries
+            # geom_3 will be reversed, to align to the other poly lines
+            geom_1 = QgsGeometry.fromWkt('LineString (0.0 0.0, 1.0 0.0)')
+            geom_2 = QgsGeometry.fromWkt('LineString (1.0 0.0, 2.0 0.0)')
+            geom_3 = QgsGeometry.fromWkt('LineString (2.0 0.0, 3.0 0.0)')
+            geom_4 = QgsGeometry.fromWkt('LineString (3.0 0.0, 4.0 0.0)')
+
+        :param features: sorted list of features
+        :param start_point: Start point for the first feature.
+                            Defaults to keep the current first feature poly line direction.
+
+        :param features: list of features
+        :param epsilon: tolerance for comparing points, defaults to _EPSILON
+    """
+
+    if not isinstance(features, list):
+        features: List[QgsFeature] = list(features)
+
+    # get the first feature from the sorted list
+    first_feature = features[0]
+    first_geometry = first_feature.geometry()
+    poly_line = get_polyline(first_geometry)
+    if start_point is not None:
+        if poly_line[-1].compare(start_point, epsilon):
+            # reverse the poly line
+            poly_line.reverse()
+            # write back to the QgsFeature (will not write it back to the data source)
+            first_feature.setGeometry(QgsGeometry.fromPolylineXY(poly_line))
+            next_point = poly_line[-1]
+        elif poly_line[0].compare(start_point, epsilon):
+            # no feature update, keep poly line as it is
+            next_point = poly_line[-1]
+        else:
+            raise ValueError(f"given {start_point.toString(TO_STRING_PREC)=} not in the first_feature's poly line"
+                             f"with geometry wkt of '{first_feature.geometry().asWkt()}'")
+
+        if len(features) == 1:
+            # no further handling, return here
+            return features
+
+    else:
+        if len(features) == 1:
+            # no further handling
+            return features
+
+        next_point = poly_line[-1]
+
+        # get the start and end vertices from the first feature
+        first_start_point = poly_line[0]  # A
+        first_end_point = poly_line[-1]   # B
+
+        # get the next feature and its start/end vertices
+        next_feature = features[1]
+        next_geometry = next_feature.geometry()
+        poly_line_next = get_polyline(next_geometry)
+        next_start_point = poly_line_next[0] # C
+        next_end_point = poly_line_next[-1]  # D
+
+        # compare the first feature vertices with the next feature vertices
+        # this handle the direction of the poly line
+        if first_start_point.compare(next_end_point, EPSILON):
+            # first_end_point:first_start_point | next_end_point:next_start_point -> first_start_point
+            # next feature is reversed from the poly line vertices
+            next_point = next_end_point
+            # reverse the first poly line
+            poly_line.reverse()
+            # write back to the QgsFeature (will not write it back to the data source)
+            first_feature.setGeometry(QgsGeometry.fromPolylineXY(poly_line))
+
+        elif first_start_point.compare(next_start_point, EPSILON):
+            # first_end_point:first_start_point | next_start_point:next_end_point -> first_start_point
+            # next feature is already well-ordered
+            next_point = next_start_point
+
+            # reverse the first poly line
+            poly_line.reverse()
+            # write back to the QgsFeature (will not write it back to the data source)
+            first_feature.setGeometry(QgsGeometry.fromPolylineXY(poly_line))
+
+        elif first_end_point.compare(next_start_point, EPSILON):
+            # first_start_point:first_end_point | next_start_point:next_end_point -> first_end_point
+            next_point = next_start_point
+        elif first_end_point.compare(next_end_point, EPSILON):
+            # first_start_point:first_end_point | next_end_point:next_start_point -> first_end_point
+            next_point = next_end_point
+        else:
+            raise ValueError(f"Sorting not possible between {first_geometry.asWkt()=} and {next_geometry.asWkt()=}")
+
+    for feature in features[1:]:
+        poly_line = get_polyline(feature.geometry())
+        if poly_line[-1].compare(next_point, epsilon):
+            # reverse the poly line
+            poly_line.reverse()
+            # write back to the QgsFeature (will not write it back to the data source)
+            feature.setGeometry(QgsGeometry.fromPolylineXY(poly_line))
+            next_point = poly_line[-1]
+        elif poly_line[0].compare(next_point, epsilon):
+            # no feature update, keep poly line as it is
+            next_point = poly_line[-1]
+        else:
+            raise ValueError(f"given {next_point.toString(TO_STRING_PREC)=} not in the feature's poly line "
+                             f"of fid {feature.id()=} with geometry wkt of '{feature.geometry().asWkt()}'")
+
+    return features
 
 
 def sort_lines_features_and_keep_poly_line_order(features: Union[List[QgsFeature], QgsFeatureIterator],
