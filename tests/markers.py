@@ -22,7 +22,7 @@ Usage: @skipif_no_qgis_app
 
 
 skipif_no_win32 = pytest.mark.skipif(sys.platform != "win32",
-                                        reason=f"Tst kann nur auf Plattform win32 ausgeführt werden.")
+                                     reason=f"Tst kann nur auf Plattform win32 ausgeführt werden.")
 """ Skip if not Windows.
 Usage: @skipif_no_win32
 """

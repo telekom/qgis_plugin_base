@@ -152,7 +152,6 @@ def get_expected_plugin_folder_name() -> Optional[str]:
     """ Returns the expected QGIS plugin folder name from the file system.
         The module base submodule has to be placed into <plugin>/submodules/<module_base>.
 
-        This function requires an active QgsApplication.instance() to find the default QGIS profile and python plugin folder.
     """
     if path := get_expected_plugin_path():
         return path.name
@@ -210,14 +209,14 @@ def is_installed_in_qgis_plugin_folder() -> bool:
     # parent directory of this plugin
     root = get_expected_plugin_path().parent
 
-    # first comes, first serves
-    return any(map(lambda path: path == root, get_python_plugins_paths()))
+    # the root path of this plugin must be in the list of python plugin paths
+    return root in get_python_plugins_paths()
 
 
-def get_ui_class(ui_file: str | Path) -> str | None:
+def get_ui_class(ui_file: str | Path) -> type[QtWidgets.QWidget] | None:
     """ Returns the first available widget within the UI file.
     """
-    # red the UI file
+    # read the UI file
     document = QDomDocument()
     document.setContent(Path(ui_file).read_bytes(), False)
     # get first widget, this widget is always the top widget -> BASE_CLASS
