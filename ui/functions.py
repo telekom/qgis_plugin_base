@@ -209,8 +209,8 @@ def is_installed_in_qgis_plugin_folder() -> bool:
     # parent directory of this plugin
     root = get_expected_plugin_path().parent
 
-    # first comes, first serves
-    return any(map(lambda path: path == root, get_python_plugins_paths()))
+    # the root path of this plugin must be in the list of python plugin paths
+    return root in get_python_plugins_paths()
 
 
 def get_ui_class(ui_file: str | Path) -> type[QtWidgets.QWidget] | None:
