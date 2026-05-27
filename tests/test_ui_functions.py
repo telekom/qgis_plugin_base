@@ -32,3 +32,6 @@ def test_is_installed_in_qgis_plugin_folder_os_environ_qgis_plugins(plugin_qgis_
     # restore temp variable
     if current_os_environ is not None:
         os.environ["QGIS_PLUGINPATH"] = current_os_environ
+    else:
+        # remove previous set test variable
+        del os.environ["QGIS_PLUGINPATH"]
