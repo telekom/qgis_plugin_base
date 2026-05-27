@@ -388,7 +388,7 @@ def realign_feature_geometries(features: Union[List[QgsFeature], QgsFeatureItera
 
         # compare the first feature vertices with the next feature vertices
         # this handle the direction of the poly line
-        if first_start_point.compare(next_end_point, EPSILON):
+        if first_start_point.compare(next_end_point, epsilon):
             # first_end_point:first_start_point | next_end_point:next_start_point -> first_start_point
             # next feature is reversed from the poly line vertices
             next_point = next_end_point
@@ -397,7 +397,7 @@ def realign_feature_geometries(features: Union[List[QgsFeature], QgsFeatureItera
             # write back to the QgsFeature (will not write it back to the data source)
             first_feature.setGeometry(QgsGeometry.fromPolylineXY(poly_line))
 
-        elif first_start_point.compare(next_start_point, EPSILON):
+        elif first_start_point.compare(next_start_point, epsilon):
             # first_end_point:first_start_point | next_start_point:next_end_point -> first_start_point
             # next feature is already well-ordered
             next_point = next_start_point
@@ -407,10 +407,10 @@ def realign_feature_geometries(features: Union[List[QgsFeature], QgsFeatureItera
             # write back to the QgsFeature (will not write it back to the data source)
             first_feature.setGeometry(QgsGeometry.fromPolylineXY(poly_line))
 
-        elif first_end_point.compare(next_start_point, EPSILON):
+        elif first_end_point.compare(next_start_point, epsilon):
             # first_start_point:first_end_point | next_start_point:next_end_point -> first_end_point
             next_point = next_start_point
-        elif first_end_point.compare(next_end_point, EPSILON):
+        elif first_end_point.compare(next_end_point, epsilon):
             # first_start_point:first_end_point | next_end_point:next_start_point -> first_end_point
             next_point = next_end_point
         else:
