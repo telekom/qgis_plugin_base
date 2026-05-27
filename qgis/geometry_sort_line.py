@@ -328,7 +328,7 @@ def realign_feature_geometries(features: Union[List[QgsFeature], QgsFeatureItera
             geom_3 = QgsGeometry.fromWkt('LineString (3.0 0.0, 2.0 0.0)')  # reversed geom_3
             geom_4 = QgsGeometry.fromWkt('LineString (3.0 0.0, 4.0 0.0)')
 
-            # becomes the following geomtries
+            # becomes the following geometries
             # geom_3 will be reversed, to align to the other poly lines
             geom_1 = QgsGeometry.fromWkt('LineString (0.0 0.0, 1.0 0.0)')
             geom_2 = QgsGeometry.fromWkt('LineString (1.0 0.0, 2.0 0.0)')
