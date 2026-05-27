@@ -45,6 +45,7 @@ from .widgets import apply_widget_options, is_widget_compatible
 from .functions import get_expected_plugin_folder_name, get_relative_path, get_ui_class
 from ..constants import (FILE_ENDINGS_PY_TO_UI, FILE_ENDINGS_RE_COMPILED, 
                          ACCESSIBILITY_DEFAULT_COLOR)
+from ..qgis.functions import get_qgis_setting
 from ..qgis.qgis_env import activate_processing_plugin
 
 
@@ -936,48 +937,7 @@ class ModuleBase(Logging):
         else:
             path = key
 
-        value = QgsSettings().value(path)
-
-        if value is None:
-            return default
-
-        if isinstance(value, type_):
-            return value
-
-        if type_ in [list, dict]:
-            try:
-                value = json.loads(value)
-            except:
-                # fall back to empty
-                value = type_()
-
-            return value
-
-        if type_ == int:
-            try:
-                value = int(value)
-            except:
-                value = None
-
-            return value
-
-        if type_ == float:
-            try:
-                value = float(value)
-            except:
-                value = None
-
-            return value
-
-        if type_ == bool:
-            if value == "1" or value.lower() == "true":
-                value = True
-            elif value == "0" or value.lower() == "false":
-                value = False
-
-            return bool(value)
-
-        return value
+        return get_qgis_setting(path, default, type_)
 
     def set_option(self, key: str, value: Any, overwrite_module_key: bool = False) -> Any:
         """ Save value to current user profile (ini-file).
