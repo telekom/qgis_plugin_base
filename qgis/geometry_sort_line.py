@@ -346,10 +346,17 @@ def realign_feature_geometries(features: Union[List[QgsFeature], QgsFeatureItera
     if not isinstance(features, list):
         features: List[QgsFeature] = list(features)
 
+    if not features:
+        return []
+
     # get the first feature from the sorted list
     first_feature = features[0]
     first_geometry = first_feature.geometry()
     poly_line = get_polyline(first_geometry)
+    if len(poly_line) < 2:
+        raise ValueError("first feature geometry must contain at least 2 vertices for realignment, "
+                         f"got geometry wkt of '{first_geometry.asWkt()}'")
+
     if start_point is not None:
         if poly_line[-1].compare(start_point, epsilon):
             # reverse the poly line
