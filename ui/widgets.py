@@ -169,7 +169,8 @@ class TextInfoBox(QMessageBox):
 
     @classmethod
     def show_content(cls, parent: Optional[QWidget], title: str, text: str, content: str,
-                     buttons: QMessageBox.StandardButtons = None) -> QMessageBox.StandardButtons:
+                     buttons: QMessageBox.StandardButtons = None,
+                     icon: QMessageBox.Icon = None) -> QMessageBox.StandardButtons:
         """ Show your info text.
 
             .. code-block:: python
@@ -179,7 +180,8 @@ class TextInfoBox(QMessageBox):
                     "I am a window title",
                     "I am a short description",
                     "<html><h1>Header</h1></html>",
-                    buttons=TextInfoBox.Yes | TextInfoBox.No
+                    buttons=TextInfoBox.Yes | TextInfoBox.No,
+                    icon=QMessageBox.Information
                 )
 
             :param parent: parents widget
@@ -187,6 +189,7 @@ class TextInfoBox(QMessageBox):
             :param text: Short description text above the content
             :param content: Content to set in QTextEdit. HTML allowed.
             :param buttons: standard buttons. defaults to Ok and Cancel
+            :param icon: Icon for the message box. defaults to no icon
 
         """
 
@@ -195,11 +198,17 @@ class TextInfoBox(QMessageBox):
         window.setStandardButtons(buttons)
 
         window.setWindowTitle(title)
+        if icon:
+            # set a icon if provided, otherwise no icon will be shown
+            window.setIcon(icon)
 
+        # load a QLabel and a QTextEdit and set the content to the edit widget
         label, edit = window._load_widgets()
         edit.setText(content)
+        # the created QLabel will be ignored
 
-        label.setText(text)
+        # set the text into the default QLabel within the QMessageBox
+        window.setText(text)
 
         widget = QWidget()
         widget.setLayout(QGridLayout())
@@ -230,7 +239,7 @@ class TextInfoBox(QMessageBox):
 
         edit = QTextEdit()
         edit.setReadOnly(True)
-        self.layout().addWidget(edit, self.rows, 0)
+        self.layout().addWidget(edit, self.rows, 0, 1, -1)
         self.rows += 1
 
         return label, edit
