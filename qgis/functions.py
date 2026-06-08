@@ -423,7 +423,7 @@ def get_qgis_setting(path: str, default=None, type_: type = str) -> Any:
     if type_ == float:
         try:
             value = float(value)
-        except:
+        except (ValueError, TypeError):
             value = None
 
         return value
