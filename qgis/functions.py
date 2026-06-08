@@ -2,10 +2,12 @@
 # SPDX-FileCopyrightText: 2025 Deutsche Telekom Technik GmbH <f.vonstudsinske@telekom.de>
 # SPDX-License-Identifier: GPL-3.0-only
 
-import logging
 import importlib
+import json
+import logging
 import qgis.utils
 import sys
+
 from pathlib import Path
 
 from qgis.core import (QgsNetworkAccessManager, QgsProject, QgsUnitTypes,
@@ -388,3 +390,56 @@ def get_prefix_path() -> Optional[Path]:
         return Path("/usr")
 
     return None
+
+
+def get_qgis_setting(path: str, default=None, type_: type = str) -> Any:
+    """ Returns the value from the given QgsSettings path. The value will be converted to the given type.
+
+        :param path: path to the setting, e.g. "/UI/lastProjectPath"
+        :param default: default value to return if no value is set or value is not of the expected type
+        :param type_: xpected type (Python built-in type) of the value, e.g. str, int, list, dict, bool, float
+        :return: value from settings or default value
+    """
+
+    value = QgsSettings().value(path)
+
+    if value is None:
+        return default
+
+    if isinstance(value, type_):
+        return value
+
+    if type_ in [list, dict]:
+        try:
+            value = json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            # fall back to empty
+            value = type_()
+
+        return value
+
+    if type_ == int:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = None
+
+        return value
+
+    if type_ == float:
+        try:
+            value = float(value)
+        except (ValueError, TypeError):
+            value = None
+
+        return value
+
+    if type_ == bool:
+        if value == "1" or value.lower() == "true":
+            value = True
+        elif value == "0" or value.lower() == "false":
+            value = False
+
+        return bool(value)
+
+    return value
