@@ -339,7 +339,6 @@ def realign_feature_geometries(features: Union[List[QgsFeature], QgsFeatureItera
         :param start_point: Start point for the first feature.
                             Defaults to keep the current first feature poly line direction.
 
-        :param features: list of features
         :param epsilon: tolerance for comparing points, defaults to _EPSILON
     """
 
@@ -368,7 +367,7 @@ def realign_feature_geometries(features: Union[List[QgsFeature], QgsFeatureItera
             # no feature update, keep poly line as it is
             next_point = poly_line[-1]
         else:
-            raise ValueError(f"given {start_point.toString(TO_STRING_PREC)=} not in the first_feature's poly line"
+            raise ValueError(f"given {start_point.toString(TO_STRING_PREC)=} not in the first_feature's poly line "
                              f"with geometry wkt of '{first_feature.geometry().asWkt()}'")
 
         if len(features) == 1:
