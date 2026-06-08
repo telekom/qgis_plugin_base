@@ -67,7 +67,7 @@ def test_realign_feature_geometries_1(plugin_qgis_new_project):
         realign_feature_geometries(features, start_point=QgsPointXY(2.0, 0.0))
 
     with pytest.raises(ValueError):
-        # must raise -> valid start point in first feature, but following features cannot be not correctly added
+        # must raise -> valid start point in first feature, but following features cannot be added correctly
         # because geom_2 has no 0,0 coordinate
         realign_feature_geometries(features, start_point=QgsPointXY(1.0, 0.0))
 
