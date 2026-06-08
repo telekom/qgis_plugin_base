@@ -180,7 +180,7 @@ class TextInfoBox(QMessageBox):
                     "I am a window title",
                     "I am a short description",
                     "<html><h1>Header</h1></html>",
-                    buttons=TextInfoBox.Yes | TextInfoBox.No
+                    buttons=TextInfoBox.Yes | TextInfoBox.No,
                     icon=QMessageBox.Information
                 )
 
