@@ -393,7 +393,13 @@ def get_prefix_path() -> Optional[Path]:
 
 
 def get_qgis_setting(path: str, default=None, type_: type = str) -> Any:
-    """ Returns the value from the given QgsSettings path """
+    """ Returns the value from the given QgsSettings path. The value will be converted to the given type.
+
+        :param path: path to the setting, e.g. "/UI/lastProjectPath"
+        :param default: default value to return if no value is set or value is not of the expected type
+        :param type_: xpected type (Python built-in type) of the value, e.g. str, int, list, dict, bool, float
+        :return: value from settings or default value
+    """
 
     value = QgsSettings().value(path)
 
