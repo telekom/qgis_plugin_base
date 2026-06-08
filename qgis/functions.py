@@ -406,7 +406,7 @@ def get_qgis_setting(path: str, default=None, type_: type = str) -> Any:
     if type_ in [list, dict]:
         try:
             value = json.loads(value)
-        except:
+        except (json.JSONDecodeError, TypeError):
             # fall back to empty
             value = type_()
 
