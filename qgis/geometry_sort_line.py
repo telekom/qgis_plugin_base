@@ -420,7 +420,7 @@ def realign_feature_geometries(features: Union[List[QgsFeature], QgsFeatureItera
             # first_start_point:first_end_point | next_end_point:next_start_point -> first_end_point
             next_point = next_end_point
         else:
-            raise ValueError(f"Sorting not possible between {first_geometry.asWkt()=} and {next_geometry.asWkt()=}")
+            raise ValueError(f"Realigning not possible between {first_geometry.asWkt()=} and {next_geometry.asWkt()=}")
 
     for feature in features[1:]:
         poly_line = get_polyline(feature.geometry())
