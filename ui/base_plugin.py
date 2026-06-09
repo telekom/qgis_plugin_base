@@ -356,7 +356,11 @@ class Plugin(ModuleBase, QObject):
             :param tag message tab(tag) in Qgis
             :param level: priority level
         """
-        msg_text = msg_text.encode('utf-8').decode('utf-8').lower()
+        try:
+            msg_text = msg_text.encode('utf-8').decode('utf-8').lower()
+        except UnicodeEncodeError:
+            # if the message text cannot be encoded/decoded, it is not processable, just skip it
+            return False
 
         # logged msg_text via QgsApplication.logMessage contains a text to identify a Python error
         error_text = QgsApplication.translate("Python", "Python error").lower()  # DE: Python-Fehler, ...
