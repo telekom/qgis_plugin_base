@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+# SPDX-FileCopyrightText: 2025 Deutsche Telekom Technik GmbH <f.vonstudsinske@telekom.de>
+# SPDX-License-Identifier: GPL-3.0-only
+
 """ Developer tool: pick a Plan[Goo] frame on screen and hot-reload its module
     from disk - without restarting the plugin or logging in again.
 
@@ -56,15 +60,31 @@ def reload_module_source(cls: Type[UiModuleBase]) -> Type[UiModuleBase]:
     else:
         purge_prefix = module_name
 
-    for name in list(sys.modules):
-        if name == purge_prefix or name.startswith(purge_prefix + "."):
-            sys.modules.pop(name, None)
+    purge_names = [
+        name for name in list(sys.modules)
+        if name == purge_prefix or name.startswith(purge_prefix + ".")
+    ]
+    purged_modules = {name: sys.modules[name] for name in purge_names}
 
-    fresh_module = importlib.import_module(module_name)
+    for name in purge_names:
+        sys.modules.pop(name, None)
+
+    def restore_purged_modules():
+        for name in list(sys.modules):
+            if name == purge_prefix or name.startswith(purge_prefix + "."):
+                sys.modules.pop(name, None)
+        sys.modules.update(purged_modules)
+
+    try:
+        fresh_module = importlib.import_module(module_name)
+    except Exception:
+        restore_purged_modules()
+        raise
 
     try:
         return getattr(fresh_module, cls.__name__)
     except AttributeError as exc:
+        restore_purged_modules()
         raise AttributeError(
             f"Klasse '{cls.__name__}' wurde nach dem Neuladen nicht in "
             f"'{module_name}' gefunden."
@@ -100,21 +120,17 @@ def _detach_grid_frame_to_placeholder(module: UiModuleBase) -> QFrame:
     index = layout.indexOf(main_widget)
     if index < 0:
         raise RuntimeError("Frame-Widget wurde in seinem Layout nicht gefunden.")
-    row, column, _row_span, _col_span = layout.getItemPosition(index)
+    row, column, row_span, col_span = layout.getItemPosition(index)
 
-    # empty placeholder frame at the same cell; _create_frame also does
-    # setattr(parent, object_name, frame) so add_ui_module can find it again
-    frame = parent._create_frame(layout, object_name, (row, column))
-    for child in frame.findChildren(QWidget):
-        child.setParent(None)
-        child.deleteLater()
+    frame = QFrame()
+    frame.setObjectName(object_name)
+    frame.setFrameShape(QFrame.NoFrame)
+    frame.setContentsMargins(1, 1, 1, 1)
 
-    replaced_item = layout.replaceWidget(main_widget, frame)
-    if replaced_item is not None:
-        old_widget = replaced_item.widget()
-        if old_widget is not None:
-            layout.removeWidget(old_widget)
-            old_widget.setParent(None)
+    layout.removeWidget(main_widget)
+    layout.addWidget(frame, row, column, row_span, col_span)
+    setattr(parent, object_name, frame)
+    main_widget.setParent(None)
 
     module.unload(self_unload=True)
     return frame
