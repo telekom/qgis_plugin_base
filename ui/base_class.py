@@ -1337,8 +1337,8 @@ class UiModuleBase(ModuleBase):
 
             :raises ValueError: if module_class does not inherit UiModuleBase
         """
-        if UiModuleBase not in inspect.getmro(module_class):
-            raise ValueError(f"'{module_class.__class__.__name__}' must inherit UiBaseModule")
+        if not issubclass(module_class, UiModuleBase):
+            raise ValueError(f"'{module_class.__name__}' must inherit UiModuleBase")
 
     def _register_ui_module(self, keyword: str, module_class: Type[UIMB],
                             use_directly: bool = False,
