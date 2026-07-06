@@ -1468,6 +1468,7 @@ class UiModuleBase(ModuleBase):
             :raises KeyError: if the current module is not registered
             :raises AttributeError: if the current module does not have a MainWidget attribute
             :raises NotImplementedError: if the parent container of the frame has no layout and cannot
+                be reloaded
         """
         self._raise_for_invalid_ui_module_class(module_class)
 
