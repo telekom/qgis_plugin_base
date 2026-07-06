@@ -43,7 +43,7 @@ from .signal_connection import Connection
 
 from .widgets import apply_widget_options, is_widget_compatible
 from .functions import get_expected_plugin_folder_name, get_relative_path, get_ui_class
-from ..constants import (FILE_ENDINGS_PY_TO_UI, FILE_ENDINGS_RE_COMPILED, 
+from ..constants import (FILE_ENDINGS_PY_TO_UI, FILE_ENDINGS_RE_COMPILED,
                          ACCESSIBILITY_DEFAULT_COLOR)
 from ..qgis.functions import get_qgis_setting
 from ..qgis.qgis_env import activate_processing_plugin
@@ -336,7 +336,7 @@ class ModuleBase(Logging):
         self._actions.append(action)
 
         return action
-    
+
     def add_tool_button(self, *,
                         toolbar_name: Optional[str] = None,
                         toolbar_displayname: Optional[str] = None,
@@ -634,7 +634,7 @@ class ModuleBase(Logging):
 
         if isinstance(path, Path):
             path = path.as_posix()
-                
+
         opened = QDesktopServices.openUrl(QUrl.fromLocalFile(path))
         self.log(f"File/Path '{path}' {opened=}", level=self.INFO)
 
@@ -1329,6 +1329,185 @@ class UiModuleBase(ModuleBase):
 
         return module
 
+    @staticmethod
+    def _raise_for_invalid_ui_module_class(module_class: Type[UIMB]):
+        """ Raise a ValueError if the given module_class does not inherit from UiModuleBase.
+
+            :param module_class: The class to check for inheritance from UiModuleBase.
+
+            :raises ValueError: if module_class does not inherit UiModuleBase
+        """
+        if UiModuleBase not in inspect.getmro(module_class):
+            raise ValueError(f"'{module_class.__class__.__name__}' must inherit UiBaseModule")
+
+    def _register_ui_module(self, keyword: str, module_class: Type[UIMB],
+                            use_directly: bool = False,
+                            parent: Optional[QWidget] = None, *args: list,
+                            **kwargs) -> UIMB:
+        """ Register a UI module without placing its widget yet.
+
+            :param keyword: keyword for module dictionary (must be unique)
+            :param module_class: module class to load
+            :param use_directly: use given module class directly as new widget?
+            :param parent: parent widget for WindowModality, defaults to None
+
+            :return: created module instance
+            :raises ValueError: if module_class does not inherit UiModuleBase
+        """
+        self._raise_for_invalid_ui_module_class(module_class)
+        module = self.add_module(keyword, module_class, parent, *args, **kwargs)
+        self.uiModuleAdding.emit(module)
+
+        if use_directly:
+            module.make_valid()
+
+        return module
+
+    def _install_ui_module_widget(self, plugin_widget: QWidget, module: UIMB,
+                                  *,
+                                  delete_replaced_widget: bool = True,
+                                  delete_replaced_children: bool = True) -> Optional[QWidget]:
+        """ Replace ``plugin_widget`` with ``module.MainWidget`` and keep module attributes in sync.
+
+            :param plugin_widget: The widget to be replaced by the module's main widget.
+            :param module: The UI module whose main widget will replace the plugin_widget.
+            :param delete_replaced_widget: If True, the replaced plugin_widget will be deleted after
+                replacement. Defaults to True.
+            :param delete_replaced_children: If True, all child widgets of the replaced plugin_widget
+                will be deleted before replacement. Defaults to True.
+
+            :return: The newly installed widget if successful, or None if the parent layout is not found.
+            :raises AttributeError: if the module does not have a MainWidget attribute.
+        """
+        # where to place the new widget into
+        parent_widget = plugin_widget.parent()
+        plugin_layout = parent_widget.layout() if parent_widget is not None else None
+
+        object_name = plugin_widget.objectName()
+        self.is_object_name_valid(object_name)
+
+        if plugin_layout is None:
+            return None
+
+        # load module into existing module
+        # more information in `UiModuleBase`
+        # gui references are set, load it
+        widget: QWidget = module.MainWidget
+        if widget is None:
+            raise AttributeError(f"missing MainWidget object name on {self.__class__.__name__}/in ui file")
+        widget._ui_module_base = module
+
+        # removes all children from widget to replace
+        if delete_replaced_children:
+            for child in plugin_widget.findChildren(QWidget):
+                child.setParent(None)
+                child.deleteLater()
+
+        replaced_widget_item = plugin_layout.replaceWidget(plugin_widget, widget)
+        widget.show()
+        plugin_widget.hide()
+        plugin_widget.setParent(None)
+
+        # set new object on old object/attribute name in module
+        source_object_name = plugin_widget.objectName()
+        setattr(self, source_object_name, widget)
+
+        if delete_replaced_widget:
+            plugin_widget.deleteLater()
+
+        if replaced_widget_item is not None:
+            if replaced_widget := replaced_widget_item.widget():
+                replaced_widget.setParent(None)
+                plugin_layout.removeWidget(replaced_widget)
+
+        # resets object name to origin "MainWidget" from ui becomes e.g. "Frame_Progressbar"
+        widget.setObjectName(source_object_name)
+
+        return widget
+
+    def _emit_ui_module_added(self, module: UIMB):
+        """ Emit signals indicating that a UI module has been added.
+
+            :param module: The UI module that has been added.
+        """
+
+        self.uiModuleAdded.emit(module)
+
+        try:
+            plugin = self.get_plugin()
+            plugin.uiSubmoduleAdded.emit(self, module)
+        except (StopIteration, ModuleNotFoundError):
+            ...
+
+    def replace_ui_module(self, current_module: UIMB,
+                          module_class: Type[UIMB],
+                          *args: list,
+                          use_directly: bool = False,
+                          parent: Optional[QWidget] = None,
+                          delete_replaced_widget: bool = True,
+                          delete_replaced_children: bool = True,
+                          validate_module: Optional[Callable[[UIMB], None]] = None,
+                          finalize_module: Optional[Callable[[UIMB], None]] = None,
+                          **kwargs) -> UIMB:
+        """ Replace an already registered UI module with a new module instance.
+
+            The old module is removed from ``_modules`` before the new one is
+            created so normal module registration can be reused. The old module
+            is intentionally not unloaded here; callers may need to transfer
+            runtime state first and should unload it with ``self_unload=False``.
+
+            :param current_module: currently registered module instance to replace
+            :param module_class: replacement module class
+            :param use_directly: use given module class directly as new widget?
+            :param parent: parent widget for WindowModality, defaults to None
+            :param delete_replaced_widget: delete the replaced placeholder/widget
+            :param delete_replaced_children: delete child widgets from the replaced widget before replacement
+            :param validate_module: optional callback executed before widget replacement
+            :param finalize_module: optional callback executed after widget replacement and before added signals
+
+            :raises KeyError: if the current module is not registered
+            :raises AttributeError: if the current module does not have a MainWidget attribute
+            :raises NotImplementedError: if the parent container of the frame has no layout and cannot
+        """
+        self._raise_for_invalid_ui_module_class(module_class)
+
+        keyword = current_module.module_name
+        if self._modules.get(keyword) is not current_module:
+            raise KeyError(f"module '{keyword}' is not registered on {self}")
+
+        current_widget = current_module.MainWidget
+        if current_widget is None:
+            raise AttributeError(f"missing MainWidget object name on {current_module.__class__.__name__}/in ui file")
+
+        self._modules.pop(keyword)
+        module = None
+        try:
+            module = self._register_ui_module(keyword, module_class, use_directly,
+                                              parent, *args, **kwargs)
+            if validate_module is not None:
+                validate_module(module)
+
+            if self._install_ui_module_widget(
+                    current_widget,
+                    module,
+                    delete_replaced_widget=delete_replaced_widget,
+                    delete_replaced_children=delete_replaced_children) is None:
+                raise NotImplementedError(
+                    "Der Eltern-Container des Frames besitzt kein Layout und kann "
+                    "nicht neu geladen werden.")
+
+            if finalize_module is not None:
+                finalize_module(module)
+        except Exception:
+            self._modules.pop(keyword, None)
+            if module is not None:
+                module.unload(self_unload=False)
+            self._modules[keyword] = current_module
+            raise
+
+        self._emit_ui_module_added(module)
+        return module
+
     def add_ui_module(self, keyword: str, plugin_widget: Union[QWidget, None],
                       module_class: Type[UIMB], use_directly: bool = False,
                       parent: Optional[QWidget] = None, *args: list,
@@ -1346,65 +1525,13 @@ class UiModuleBase(ModuleBase):
             :param use_directly: use given module class directly as new widget?
             :param parent: parent widget for WindowModality, defaults to None
         """
-
-        if UiModuleBase not in inspect.getmro(module_class):
-            raise ValueError(f"'{module_class.__class__.__name__}' must inherit UiBaseModule")
-
-        module = self.add_module(keyword, module_class, parent, *args, **kwargs)
-        self.uiModuleAdding.emit(module)
-
-        if use_directly:
-            module.make_valid()
+        module = self._register_ui_module(keyword, module_class, use_directly,
+                                          parent, *args, **kwargs)
 
         if plugin_widget is not None:
-            # where to place the new widget into
-            parent_widget = plugin_widget.parent()
-            plugin_layout = parent_widget.layout()
+            self._install_ui_module_widget(plugin_widget, module)
 
-            object_name = plugin_widget.objectName()
-            self.is_object_name_valid(object_name)
-
-            if plugin_layout is not None:
-                # load module into existing module
-                # more information in `UiModuleBase`
-                # gui references are set, load it
-                widget: QWidget = module.MainWidget
-                if widget is None:
-                    raise AttributeError(f"missing MainWidget object name on {self.__class__.__name__}/in ui file")
-                widget._ui_module_base = module
-
-                # removes all children from widget to replace
-                for child in plugin_widget.findChildren(QWidget):
-                    child.setParent(None)
-                    child.deleteLater()
-
-                replaced_widget_item = plugin_layout.replaceWidget(plugin_widget, widget)
-                widget.show()
-                plugin_widget.hide()
-                plugin_widget.setParent(None)
-
-                # set new object on old object/attribute name in module
-                source_object_name = plugin_widget.objectName()
-                setattr(self, source_object_name, widget)
-
-                plugin_widget.deleteLater()
-
-                if replaced_widget_item is not None:
-                    if replaced_widget := replaced_widget_item.widget():
-                        replaced_widget.setParent(None)
-                        plugin_layout.removeWidget(replaced_widget)
-
-                # resets object name to origin "MainWidget" from ui becomes e.g. "Frame_Progressbar"
-                widget.setObjectName(source_object_name)
-
-        self.uiModuleAdded.emit(module)
-
-        try:
-            plugin = self.get_plugin()
-            plugin.uiSubmoduleAdded.emit(self, module)
-        except (StopIteration, ModuleNotFoundError):
-            ...
-
+        self._emit_ui_module_added(module)
         return module
 
     def get_widget(self, object_name: str) -> Optional[QWidget]:
