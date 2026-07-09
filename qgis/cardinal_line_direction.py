@@ -146,7 +146,7 @@ def get_outgoing_cardinal_direction_for_point(point: QgsFeature, line_features: 
 
         :param point: point QgsFeature as starting position for outgoing cardinal direction
         :param line_features: list of line QgsFeatures for outgoing cardinal direction
-        :return: list of int as cardinal dircetions
+        :return: list of int as cardinal directions
     """
     starting_point = point.geometry().asPoint()
 
@@ -182,8 +182,12 @@ def circular_mean_cardinal_direction_numbers(numbers: List[int]) -> int:
     """ Calculate the circular mean of a list of integers on a circular scale.
 
         :param numbers: list of integers in the range 0 - 7 (cardinal direction numbers)
-        :return: circular mean of given list
+        :return: circular mean of given list, -1 if no list found
     """
+
+    if not numbers:
+        return -1
+
     n = len(numbers)
     # 8 -> max cardinal directions + 1
     angles = [2 * pi * num / 8 for num in numbers]
