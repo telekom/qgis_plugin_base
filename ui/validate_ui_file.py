@@ -7,9 +7,9 @@ from lxml import etree
 
 from pathlib import Path
 from re import compile, Pattern
-from typing import Dict, Union, Optional, List
+from typing import Dict, Union, Optional, List, Tuple
 
-Rules: Dict[str, Dict[str, Union[Pattern, Optional[Dict[str, Pattern]]]]] = {
+Rules: Dict[str, Dict[str, Pattern | None] | Dict[str, Pattern | Dict[str, Tuple[bool, Pattern]]]] = {
     "QCalendarWidget": {
         'names': compile(r"^Calendar$"),
         'options': None
@@ -122,6 +122,10 @@ Rules: Dict[str, Dict[str, Union[Pattern, Optional[Dict[str, Pattern]]]]] = {
         'names': compile("^(Line|LineSpacer|Line_Spacer)(_[A-Za-z_]+)?$"),
         'options': None
     },
+    "QGraphicsView": {
+            'names': compile("^(Graphics|GraphicsView)(_[A-Za-z_]+)?$"),
+            'options': None
+    },
 
     # qgis classes
     "QgsFileWidget": {
@@ -132,8 +136,7 @@ Rules: Dict[str, Dict[str, Union[Pattern, Optional[Dict[str, Pattern]]]]] = {
 }
 
 
-def validate_file(input_file: Union[Path, str],
-                          output_file: Optional[Union[Path, str]] = None) -> Optional[Path]:
+def validate_file(input_file: Union[Path, str], output_file: Optional[Union[Path, str]] = None) -> Optional[Path]:
     """ Tests ui file with defined QWidgets via Qt Designer.
         Overwrites existing files.
 
@@ -269,6 +272,18 @@ def validate_folder(folder_input: Union[Path, str],
 
 
 def run_from_terminal():
+    """ Entry point for running the UI file validator from the command line.
+
+        Parses command-line arguments for input and output paths.
+        If not provided as arguments, prompts the user interactively.
+
+        - If the input path is a file, validates that single UI file.
+        - If the input path is a directory, recursively validates all UI files found within it.
+
+        Arguments:
+            -input: Path to a .ui file or a directory containing .ui files (required).
+            -output: Path to the output result file or directory (optional).
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("-input", dest="input", type=str, required=False, default=None)
     parser.add_argument("-output", dest="output", type=str, required=False, default=None)
