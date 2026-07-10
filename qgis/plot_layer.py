@@ -60,14 +60,14 @@ class PlotLayer(QObject):
         if layer is not None:
             # already loaded in QGIS
             self.layer_pages_id = layer.id()
-            self.__load_default_style_page_layer(layer)
+            self.load_default_style_page_layer(layer)
         else:
             # not loaded in QGIS instance
             name = name if name else os.path.basename(self.source).split(".", 1)[0]
             layer_pages = QgsVectorLayer(self.uri_pages,
                                          name,
                                          "ogr")
-            self.__load_default_style_page_layer(layer_pages)
+            self.load_default_style_page_layer(layer_pages)
             QgsProject.instance().addMapLayer(layer_pages, False)
             root = QgsProject.instance().layerTreeRoot()
             root.insertLayer(0, layer_pages)
@@ -79,7 +79,7 @@ class PlotLayer(QObject):
         self.feature: QgsFeature = next(layer_options.getFeatures())
         del layer_options
 
-    def __load_default_style_page_layer(self, page_layer: QgsVectorLayer):
+    def load_default_style_page_layer(self, page_layer: QgsVectorLayer):
         """ Loads the default style and overwrites the existing style """
         page_layer.loadNamedStyle(str(DEFAULT_STYLE), True)
 
@@ -489,7 +489,7 @@ class PlotLayerMemory(PlotLayer):
             self.load_defaults()
         self.feature: QgsFeature = next(layer_options.getFeatures())
 
-        self.__load_default_style_page_layer(self.__layer_pages)
+        self.load_default_style_page_layer(self.__layer_pages)
 
     @classmethod
     def create_new(cls, crs: QgsCoordinateReferenceSystem, template_name: str):
@@ -514,10 +514,6 @@ class PlotLayerMemory(PlotLayer):
     @property
     def layer_pages(self) -> QgsVectorLayer:
         return self.__layer_pages
-
-    def __load_default_style_page_layer(self, page_layer: QgsVectorLayer):
-        """ Loads the default style and overwrites the existing style """
-        page_layer.loadNamedStyle(str(DEFAULT_STYLE), True)
 
 
 class PlotPage:
