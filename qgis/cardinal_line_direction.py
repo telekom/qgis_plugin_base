@@ -5,10 +5,25 @@
 from math import pi, cos, sin, atan2
 from typing import List
 
-from qgis.core import QgsGeometry, QgsFeatureRequest, QgsFeature, QgsVectorLayer, QgsPointXY
+from qgis.core import QgsGeometry, QgsFeatureRequest, QgsFeature, QgsVectorLayer, QgsPointXY, QgsFeatureIterator
 
 from .geometry_sort_line import sort_lines
 from .. import constants
+
+
+# mapping dict for direction numbers, to translate in readable direction
+DIRECTION_NUMBER_MAPPING = {
+    0: "Norden",
+    1: "Nord-Osten",
+    2: "Osten",
+    3: "Süd-Osten",
+    4: "Süden",
+    5: "Süd-Westen",
+    6: "Westen",
+    7: "Nord-Westen",
+    # default error case
+    -1: "Keine Richtung ermittelt",
+}
 
 
 def get_cardinal_direction(point_feature: QgsFeature, line_features: List[QgsFeature],
@@ -30,7 +45,7 @@ def get_cardinal_direction(point_feature: QgsFeature, line_features: List[QgsFea
     """
 
     # inner function
-    def get_points_from_bounding_box(point) -> list[QgsFeature]:
+    def get_points_from_bounding_box(point) -> QgsFeatureIterator:
         """ get all features from point layer which are intersecting with point
 
             :param point: QgsPointXY point to get intersecting features
@@ -42,7 +57,7 @@ def get_cardinal_direction(point_feature: QgsFeature, line_features: List[QgsFea
         bounding_box.grow(constants.EPSILON)
         filter_request = QgsFeatureRequest().setFilterRect(bounding_box)
         # filtered features which are intersecting with point
-        filtered_features: list[QgsFeature] = point_layer.getFeatures(filter_request)
+        filtered_features: QgsFeatureIterator = point_layer.getFeatures(filter_request)
 
         return filtered_features
     # end of inner function
@@ -110,21 +125,6 @@ def get_direction_number_from_degree(degree: float) -> int:
         direction_nr = -1  # ERROR
 
     return direction_nr
-
-
-# mapping dict for direction numbers, to translate in readable direction
-direction_number_mapping = {
-    0: "Norden",
-    1: "Nord-Osten",
-    2: "Osten",
-    3: "Süd-Osten",
-    4: "Süden",
-    5: "Süd-Westen",
-    6: "Westen",
-    7: "Nord-Westen",
-    # default error case
-    -1: "Keine Richtung ermittelt",
-}
 
 
 def get_outgoing_cardinal_direction_for_point(point: QgsFeature, line_features: List[QgsFeature]) -> List[int]:

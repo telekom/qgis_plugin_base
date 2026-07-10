@@ -123,8 +123,8 @@ Rules: Dict[str, Dict[str, Pattern | None] | Dict[str, Pattern | Dict[str, Tuple
         'options': None
     },
     "QGraphicsView": {
-            'names': compile("^(Graphics|GraphicsView)(_[A-Za-z_]+)?$"),
-            'options': None
+        'names': compile("^(Graphics|GraphicsView)(_[A-Za-z_]+)?$"),
+        'options': None
     },
 
     # qgis classes
