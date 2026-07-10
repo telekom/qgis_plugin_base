@@ -21,7 +21,7 @@ from .geopackage import GeoPackage
 from .layer import get_layer_source, create_layer_by_template
 from .project import get_layer_from_source
 
-DEFAULT_STYLE = Path(__file__).parent / "qml" /  "default_plot_layer_pages_style.qml"
+DEFAULT_STYLE = Path(__file__).parent / "qml" / "default_plot_layer_pages_style.qml"
 
 
 class PlotLayer(QObject):
