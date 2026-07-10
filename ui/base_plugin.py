@@ -285,7 +285,7 @@ class Plugin(ModuleBase, QObject):
         """
         root = get_expected_plugin_path()
         plugin_path = os.path.normcase(os.path.normpath(str(root)))
-        
+
         if os.name == "nt":
             try:
                 # try to import clr for pythonnet/.NET

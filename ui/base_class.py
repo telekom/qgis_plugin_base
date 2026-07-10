@@ -1516,7 +1516,7 @@ class UiModuleBase(ModuleBase):
         """ Add new module to this module and returns it. It can be a ModuleBase or UiModuleBase
 
         Example:
-            self.register_module('A Tab',  # Internale module dict key
+            self.register_module('A Tab',  # Internal module dict key
                                  self.Widget,  # widget to replace with this module
                                  MyUiModuleType)  #  new module class
 
