@@ -294,7 +294,7 @@ class PathFinderV2(QObject):
 
         # pre checks, if the vertex id in the graph is -1 (not exists)
         #   EPSILON based comparison not performed in c++ QgsGraph.findVertex, uses == operator
-        if vertex_start_id == -1 or vertex_start_id == -1:
+        if vertex_start_id == -1 or vertex_end_id == -1:
             return []
 
         # get the tree
@@ -363,7 +363,7 @@ class PathFinderV2(QObject):
             poly_line = feature.geometry().asPolyline()
 
             # remove duplicated points
-            points = remove_duplicated_points(poly_line, epsilon=0.0)
+            poly_line = remove_duplicated_points(poly_line, epsilon=0.0)
 
             if poly_line[0].compare(end_point, self.__epsilon):
                 # poly_line is not rotated correctly
@@ -386,16 +386,23 @@ class PathFinderV2(QObject):
         """
 
         # prepare the director and get the graph
-        director = self.__get_layer_director_shortest()
+        self.__get_layer_director_shortest()
         graph = self.__graph_builder_shortest.graph()
 
         # get the vertex ids in the graph
         point_idx_start = graph.findVertex(start_point)
+
+        # no route/start point found, vertex id is -1
+        # prevent crash, when it is -1
+        if point_idx_start == -1:
+            return []
+
         tree = QgsGraphAnalyzer.shortestTree(graph, point_idx_start, 0)
         point_idx_end = tree.findVertex(end_point)
 
         # no route found, vertex id is -1
-        if point_idx_start == -1 or point_idx_end == -1:
+        # prevent crash, when it is -1
+        if point_idx_end == -1:
             return []
 
         # add the end point per default into the list

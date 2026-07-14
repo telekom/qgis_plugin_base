@@ -148,7 +148,7 @@ def test_path_finder_get_poly_line_dijkstra_reuse(__line_layer, plugin_qgis_new_
     points_layer = processing.run("native:extractvertices", params)["OUTPUT"]
     all_vertices = list(set(f.geometry().asPoint() for f in points_layer.getFeatures()))
 
-    for a,b in zip(range(0, 11), reversed(range(0, 11))):
+    for a, b in zip(range(0, 11), reversed(range(0, 11))):
         start_point = QgsPointXY(a, 0.0)
         end_point = QgsPointXY(b, 0.0)
 
@@ -230,7 +230,7 @@ def test_path_finder_get_fid_route(__line_layer, plugin_qgis_new_project):
     # endregion contains
 
 
-def test_path_finder_get_fid_route(plugin_qgis_new_project):
+def test_path_finder_compare_get_fid_route(plugin_qgis_new_project):
     """
 
     .. code-block:: python
@@ -277,22 +277,11 @@ def test_path_finder_get_fid_route(plugin_qgis_new_project):
          [55, 19, 6, 49, 8, 10, 7, 35, 18, 26, 25, 37, 9, 44, 16, 17, 13, 15, 2, 3, 64, 0, 46, 58, 57, 62, 33, 38, 36,
           60, 48, 51, 45, 29, 50, 14, 11, 12, 63, 65, 59, 61, 4, 5, 1, 24, 43])
     ]
-    print("START")
 
-    import time
-    s = time.time()
     for index, (start_point, end_point, expected_path) in enumerate(CONFIG):
         result = path_finder_v2.get_fid_route(start_point, end_point, methods=[PathFinderMethods.Dijkstra])
         assert result == expected_path
-    str_ende_v2 = f"ENDE PathFinderV2: {time.time() - s}"
 
-    s = time.time()
     for index, (start_point, end_point, expected_path) in enumerate(CONFIG):
         result = PathFinder.get_fid_route(layer, start_point, end_point, method=2)[0]  # Dijkstra
         assert result == expected_path
-    str_ende_v1 = f"ENDE PathFinder(V1): {time.time() - s}"
-
-    print(str_ende_v2)
-    print(str_ende_v1)
-
-    print("END")
