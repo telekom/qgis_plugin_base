@@ -148,7 +148,7 @@ def test_path_finder_get_poly_line_dijkstra_reuse(__line_layer, plugin_qgis_new_
     points_layer = processing.run("native:extractvertices", params)["OUTPUT"]
     all_vertices = list(set(f.geometry().asPoint() for f in points_layer.getFeatures()))
 
-    for a,b in zip(range(0, 11), reversed(range(0, 11))):
+    for a, b in zip(range(0, 11), reversed(range(0, 11))):
         start_point = QgsPointXY(a, 0.0)
         end_point = QgsPointXY(b, 0.0)
 
@@ -228,71 +228,3 @@ def test_path_finder_get_fid_route(__line_layer, plugin_qgis_new_project):
                                                       mode=PathFinderFidRouteModes.CONTAINS)
     assert fid_route_v2_15_17 == [11]
     # endregion contains
-
-
-def test_path_finder_get_fid_route(plugin_qgis_new_project):
-    """
-
-    .. code-block:: python
-
-        from <package>.submodules.base.qgis.path_finder_v2 import PathFinderV2
-
-        point_layer = QgsProject.instance().mapLayersByName("Punktobjekte")[0]
-        line_layer = QgsProject.instance().mapLayersByName("Trasse")[0]
-
-        start_feature, end_feature = iface.activeLayer().selectedFeatures()
-        start_point = start_feature.geometry().asPoint()
-        end_point = end_feature.geometry().asPoint()
-
-        print(f"START: QgsPointXY({start_point.x()}, {start_point.y()})")
-        print(f"END: QgsPointXY({end_point.x()}, {end_point.y()})")
-        print("ROUTE:", PathFinderV2(line_layer).get_fid_route(start_point, end_point)[0])
-
-        print(f"(QgsPointXY({start_point.x()}, {start_point.y()}),", f"QgsPointXY({end_point.x()}, {end_point.y()}),", f"{PathFinder.get_fid_route(line_layer, start_point, end_point)[0]})")
-
-    """
-
-    from ..qgis.path_finder_v2 import PathFinderV2, PathFinderMethods
-    from ..qgis.path_finder import PathFinder
-
-    geojson = (Path(__file__).parent / "test_path_finder_v2.geojson").as_posix()
-    layer = QgsVectorLayer(geojson, "test", "ogr")
-
-    path_finder_v2 = PathFinderV2(layer)
-
-    CONFIG = [
-        (QgsPointXY(2534662.9116416723, 15879077.673362624), QgsPointXY(2535361.32466705, 15878500.705561217), [40]),
-        (QgsPointXY(2534662.9116416723, 15879077.673362624), QgsPointXY(2534483.359213288, 15877393.329773579),
-         [40, 21, 47, 18, 20]),
-        (QgsPointXY(2535361.32466705, 15878500.705561217), QgsPointXY(2534363.089840602, 15877481.684316106),
-         [21, 47, 35, 7, 10, 8, 49, 6, 19, 55]),
-        (QgsPointXY(2534483.359213288, 15877393.329773579), QgsPointXY(2534376.0695787165, 15877410.072197765),
-         [20, 26, 25, 31, 27, 34, 54, 56, 52, 53, 32, 23]),
-        (QgsPointXY(2534282.625968749, 15877256.291979125), QgsPointXY(2534141.8663761015, 15877345.785895415),
-         [41, 45, 29, 50, 14, 11, 12, 63, 65, 59, 61, 4, 5, 1, 24, 43]),
-        (QgsPointXY(2534282.625968749, 15877256.291979125), QgsPointXY(2534376.0695787165, 15877410.072197765),
-         [41, 51, 48, 60, 36, 38, 33, 62, 57, 58, 46, 0, 64, 3, 2, 15, 13, 17, 16, 44, 9, 37, 31, 27, 34, 54, 56, 52,
-          53, 32, 23]),
-        (QgsPointXY(2534363.089840602, 15877481.684316106), QgsPointXY(2534141.8663761015, 15877345.785895415),
-         [55, 19, 6, 49, 8, 10, 7, 35, 18, 26, 25, 37, 9, 44, 16, 17, 13, 15, 2, 3, 64, 0, 46, 58, 57, 62, 33, 38, 36,
-          60, 48, 51, 45, 29, 50, 14, 11, 12, 63, 65, 59, 61, 4, 5, 1, 24, 43])
-    ]
-    print("START")
-
-    import time
-    s = time.time()
-    for index, (start_point, end_point, expected_path) in enumerate(CONFIG):
-        result = path_finder_v2.get_fid_route(start_point, end_point, methods=[PathFinderMethods.Dijkstra])
-        assert result == expected_path
-    str_ende_v2 = f"ENDE PathFinderV2: {time.time() - s}"
-
-    s = time.time()
-    for index, (start_point, end_point, expected_path) in enumerate(CONFIG):
-        result = PathFinder.get_fid_route(layer, start_point, end_point, method=2)[0]  # Dijkstra
-        assert result == expected_path
-    str_ende_v1 = f"ENDE PathFinder(V1): {time.time() - s}"
-
-    print(str_ende_v2)
-    print(str_ende_v1)
-
-    print("END")
