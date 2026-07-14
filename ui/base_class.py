@@ -2,14 +2,15 @@
 # SPDX-FileCopyrightText: 2025 Deutsche Telekom Technik GmbH <f.vonstudsinske@telekom.de>
 # SPDX-License-Identifier: GPL-3.0-only
 
+import configparser
+import importlib.util
 import inspect
-import os.path
-import sys
-import sip
 import json
 import logging
-import importlib.util
-import configparser
+import os.path
+import sip
+import sys
+import time
 
 from re import fullmatch, sub as re_sub, escape, search
 
@@ -384,6 +385,8 @@ class ModuleBase(Logging):
             :param module_class: module class to load
             :param parent: parent widget for WindowModality, defaults to None
         """
+        # a small timer
+        start_time = time.time()
         if keyword in self._modules:
             raise KeyError(f"module '{keyword}' already loaded.")
 
@@ -420,6 +423,14 @@ class ModuleBase(Logging):
             plugin.submoduleAdded.emit(self, module)
         except (StopIteration, ModuleNotFoundError):
             ...
+
+        self.log(f"[add_module] Module '{module_class.__name__}' with key '{keyword}' "
+                 f"loaded in {time.time() - start_time:.4f} s",
+                 level=self.DEBUG,
+                 module_base_method="add_module",
+                 module_base_class_name=module_class.__name__,
+                 module_base_keyword=keyword,
+                 module_base_load_time=time.time() - start_time)
 
         return module
 
@@ -1256,6 +1267,7 @@ class UiModuleBase(ModuleBase):
                     label: QLabel = widget.findChild(QLabel, label_reference)
                     content: QWidget = widget.findChild(QWidget, content_reference)
                     button: QPushButton = widget.findChild(QPushButton, button_reference)
+                    tool_button: QToolButton = widget.findChild(QToolButton, button_reference)
                     wide_label: QLabel = widget.findChild(QLabel, wide_label_reference)
 
                     # get a widget to load, no specific QWidget type, any type allowed
@@ -1270,6 +1282,9 @@ class UiModuleBase(ModuleBase):
                     # StaticButton widget found
                     elif button:
                         button_references.append(button)
+                        button_count += 1
+                    elif tool_button:
+                        button_references.append(tool_button)
                         button_count += 1
                     # WideLabel widget found
                     elif wide_label:
@@ -1526,6 +1541,7 @@ class UiModuleBase(ModuleBase):
             :param use_directly: use given module class directly as new widget?
             :param parent: parent widget for WindowModality, defaults to None
         """
+        start_time = time.time()
         module = self._register_ui_module(keyword, module_class, use_directly,
                                           parent, *args, **kwargs)
 
@@ -1533,6 +1549,15 @@ class UiModuleBase(ModuleBase):
             self._install_ui_module_widget(plugin_widget, module)
 
         self._emit_ui_module_added(module)
+
+        self.log(f"[add_ui_module] UI module '{module_class.__name__}' with key '{keyword}' "
+                 f"loaded in {time.time() - start_time:.4f} s",
+                 level=self.DEBUG,
+                 module_base_method="add_ui_module",
+                 module_base_class_name=module_class.__name__,
+                 module_base_keyword=keyword,
+                 module_base_load_time=time.time() - start_time)
+
         return module
 
     def get_widget(self, object_name: str) -> Optional[QWidget]:
