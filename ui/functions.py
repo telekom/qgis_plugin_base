@@ -4,12 +4,10 @@
 import os
 
 from pathlib import Path
-from datetime import datetime
 
 from qgis.PyQt.QtWidgets import QLabel, QGroupBox
 from qgis.PyQt.QtXml import QDomElement, QDomDocument
 from qgis.PyQt import QtWidgets
-from qgis.PyQt import uic
 from qgis.core import QgsApplication
 
 from typing import Optional, List
