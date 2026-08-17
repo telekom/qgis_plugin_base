@@ -1741,13 +1741,6 @@ class UiModuleBase(ModuleBase):
         .. code-block: python
 
             FORM_CLASS, _ = UiModuleBase.get_uic_classes(__file__)
-            FORM_CLASS: 'Ui'
-            try:
-                from .my_cool_plugin_generated_ui import Ui as FORM_CLASS
-                # overwrite FORM_CLASS for type hinting, use your module instead of 'my_cool_plugin'
-
-            except ModuleNotFoundError:
-                pass
 
         :param python_or_ui_file: python file path or path to ui file
         :param force_compile: set to True to always recompile (like in dev mode). Defaults to False.

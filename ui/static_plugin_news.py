@@ -13,12 +13,7 @@ from .base_class import UiModuleBase, ModuleBase
 from ..qgis.qgis_network_requests import get
 
 FORM_CLASS, _ = UiModuleBase.get_uic_classes(__file__)
-FORM_CLASS: 'Ui'
-try:
-    from .static_plugin_news_generated_ui import Ui as FORM_CLASS
 
-except ModuleNotFoundError:
-    pass
 
 KEY_LAST_NEWS_DATE = "LAST_NEWS_DATE"
 
