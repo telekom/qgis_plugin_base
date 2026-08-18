@@ -8,12 +8,6 @@ from .base_class import UiModuleBase
 
 
 FORM_CLASS, _ = UiModuleBase.get_uic_classes(__file__)
-FORM_CLASS: 'Ui'
-try:
-    from .dummy_generated_ui import Ui as FORM_CLASS
-
-except ModuleNotFoundError:
-    pass
 
 
 class ModuleDummy(UiModuleBase, QMainWindow, FORM_CLASS):

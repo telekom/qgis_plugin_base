@@ -9,14 +9,7 @@ from pathlib import Path
 from qgis.PyQt.QtWidgets import QDialog
 
 from .fixtures import plugin_qgis_new_project
-from ..ui.functions import get_ui_class, is_installed_in_qgis_plugin_folder
-
-
-def test_get_compiled_uic_classes():
-
-    file = Path(__file__).parent / "test_ui_base_class.ui"
-    widget_type = get_ui_class(file.as_posix())
-    assert widget_type == QDialog
+from ..ui.functions import is_installed_in_qgis_plugin_folder
 
 
 def test_is_installed_in_qgis_plugin_folder_os_environ_qgis_plugins(plugin_qgis_new_project):

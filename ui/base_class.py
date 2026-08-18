@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 
 import configparser
-import importlib.util
 import inspect
 import json
 import logging
@@ -1730,27 +1729,15 @@ class UiModuleBase(ModuleBase):
         return ui_file_path
 
     @classmethod
-    def get_uic_classes(cls, python_or_ui_file: str, force_compile: bool = False) -> Tuple[Any, Type[QWidget]]:
+    def get_uic_classes(cls, python_or_ui_file: str) -> Tuple[Any, Type[QWidget]]:
         """
-        Returns ui classes for given .py/.ui file.
-        When called in a developer environment (dev mode of the plugin is active where module_base is a submodule to)
-        or force_compile is set to True, .py files are always generated when this method is called.
-        When dev mode is inactive, either a corresponding .py file is used for the pyqt classes, or,
-        if a .ui file is found, uic.loadUiType is used to dynamically generate the pyqt ui class.
+        Returns ui classes for given ui-file. If a Python file path is given, the relative ui-file-path will be used.
 
         .. code-block: python
 
             FORM_CLASS, _ = UiModuleBase.get_uic_classes(__file__)
-            FORM_CLASS: 'Ui'
-            try:
-                from .my_cool_plugin_generated_ui import Ui as FORM_CLASS
-                # overwrite FORM_CLASS for type hinting, use your module instead of 'my_cool_plugin'
 
-            except ModuleNotFoundError:
-                pass
-
-        :param python_or_ui_file: python file path or path to ui file
-        :param force_compile: set to True to always recompile (like in dev mode). Defaults to False.
+        :param python_or_ui_file: Python file path or path to ui file
         :return: tuple of form class (most needed) and Qt base class from Qt Designer, e.g QMainWindow
         """
 
@@ -1761,52 +1748,7 @@ class UiModuleBase(ModuleBase):
             # python file is given, get ui file path
             python_or_ui_file = cls.get_ui_file(python_or_ui_file)
 
-        if cls.is_my_plugin_in_dev_mode() or force_compile:
-            from .functions import generate
-            result = generate(Path(python_or_ui_file))
-
-        # CLIENT MODE, .py wont be created at runtime, only used, if found
-        pyuic_file = Path(python_or_ui_file).with_stem(Path(python_or_ui_file).stem + '_generated_ui').with_suffix('.py')
-        if not pyuic_file.exists():
-            # compiled .py doesnt exist, use loadUiType with ui file (legacy method)
-            # print(f"compiled pyuic file not found for {python_or_ui_file}, using get_uic_classes()")
-            return cls.get_dynamic_uic_classes(python_or_ui_file)
-        else:
-            return cls.get_compiled_uic_classes(pyuic_file.as_posix(), python_or_ui_file)
-
-    @classmethod
-    def get_compiled_uic_classes(cls, pyuic_compiled_file: str, ui_file: str) -> Tuple[Any, Type[QWidget]]:
-        # import from generated .py
-        # https://stackoverflow.com/questions/67631/how-can-i-import-a-module-dynamically-given-the-full-path
-        # FORM_CLASS:
-        module_name = Path(pyuic_compiled_file).stem
-        spec = importlib.util.spec_from_file_location(module_name, pyuic_compiled_file)
-        ui_module = importlib.util.module_from_spec(spec)
-        sys.modules[module_name] = ui_module
-        spec.loader.exec_module(ui_module)
-
-        return ui_module.Ui, get_ui_class(ui_file)
-
-    @classmethod
-    def get_dynamic_uic_classes(cls, python_or_ui_file: str) -> Tuple[Any, Type[QWidget]]:
-        """ Returns objects/classes from uic.loadType.
-            Python file and ui file must be in same folder.
-
-            See `qgis.PyQt.uic.loadUiType` for more information.
-
-            :param python_or_ui_file: python file path or path to ui file
-            :return: form class (most needed) and Qt base class from Qt Designer, e.g QMainWindow
-        """
-        if not python_or_ui_file.endswith((".ui", ) + FILE_ENDINGS_PY_TO_UI):
-            raise ValueError(f"unexpected file ending for '{python_or_ui_file}'")
-
-        if python_or_ui_file.endswith(FILE_ENDINGS_PY_TO_UI):
-            # python file is given, get ui file path
-            python_or_ui_file = cls.get_ui_file(python_or_ui_file)
-
-        form_class, base_class = uic.loadUiType(python_or_ui_file)
-
-        return form_class, base_class
+        return uic.loadUiType(python_or_ui_file)
 
     @classmethod
     def get_tab_stops_from_ui_file(cls, python_or_ui_file: str) -> List[str]:

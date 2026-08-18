@@ -4,12 +4,10 @@
 import os
 
 from pathlib import Path
-from datetime import datetime
 
 from qgis.PyQt.QtWidgets import QLabel, QGroupBox
 from qgis.PyQt.QtXml import QDomElement, QDomDocument
 from qgis.PyQt import QtWidgets
-from qgis.PyQt import uic
 from qgis.core import QgsApplication
 
 from typing import Optional, List
@@ -83,55 +81,6 @@ def set_label_success(label: QLabel, text: str) -> None:
         :param text: text to set, keep it empty and label will be hidden
     """
     set_label_status(label, text, STYLE_SHEET_SUCCESS)
-
-
-def generate(file: Path) -> Path:
-    """
-    Generates a .py file using uic from the given input file. The .py file is saved with the same name as the ui file,
-    with name suffix '_generated_ui' appended.
-
-    :param file: Path to the ui file you want compiled
-
-    :return:
-    """
-    if not file.is_file() and not file.suffix == '.ui':
-        raise ValueError(f"file {file.as_posix()} is not a ui file")
-
-    pyfile = file.with_stem(file.stem + '_generated_ui').with_suffix('.py')
-    with file.open('r') as opened_uifile:
-        with pyfile.open('w') as opened_pyfile:
-            uic.compileUi(uifile=opened_uifile, pyfile=opened_pyfile)
-
-    pyfile_lines = pyfile.read_text('utf-8').split("\n")
-    newlines = []
-    for line in pyfile_lines:
-        # some customizations
-        newline = line
-        if line.startswith('# Form implementation generated'):
-            newline = f"# GENERATED ON {str(datetime.now())} FOR UI FILE '{file.name}'" # privacy
-        if line.startswith('from PyQt5'):
-            newline = line.replace('from PyQt5', 'from qgis.PyQt', 1) # qgis
-        if line.startswith('# run again.'):
-            # append some hints how to use this file
-            newline = line + f'\n\n' \
-                             f'# how to use this file: write this block on top of your {file.stem}.py file that is doing the operations\n' \
-                             f'"""\n' \
-                             f'FORM_CLASS, _ = UiModuleBase.get_uic_classes(__file__)\n' \
-                             f'FORM_CLASS: \'Ui\'\n' \
-                             f'try:\n' \
-                             f'    from .{pyfile.stem} import Ui as FORM_CLASS\n' \
-                             f'\n' \
-                             f'except ModuleNotFoundError:\n' \
-                             f'    pass\n' \
-                             f'"""\n'
-        if line.startswith('class'):
-            newline = "class Ui(object):" # make every class name the same
-
-
-        newlines.append(newline)
-
-    pyfile.write_text("\n".join(newlines))
-    return pyfile
 
 
 def get_expected_plugin_path() -> Path:
