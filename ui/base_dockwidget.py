@@ -20,6 +20,7 @@ class DockWidgetModuleBase(UiModuleBase, QgsDockWidget):
         Use instead:
             - `insert_module_tab`
     """
+
     # True=visible, False=not visible
     widgetVisibilityChanged = pyqtSignal(bool, name="widgetVisibilityChanged")
 
@@ -80,11 +81,16 @@ class DockWidgetModuleBase(UiModuleBase, QgsDockWidget):
         return frame
 
     def unload(self, self_unload: bool = False):
-        """ will be called, when module will be unloaded
+        """ Will be called, when module will be unloaded
 
             :param self_unload: only self unload, defaults to False
         """
-        if self.parent():
+        if self.unloaded:
+            return
+
+        # a floating dock widget tears down its own floating container on destruction,
+        # doing it here would delete the native window while Qt still dispatches the close event
+        if self.parent() and not self.isFloating():
             self.parent().removeDockWidget(self)
 
         super().unload(self_unload)

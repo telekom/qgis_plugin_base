@@ -10,6 +10,7 @@ import os.path
 import sip
 import sys
 import time
+import contextlib
 
 from re import fullmatch, sub as re_sub, escape, search
 
@@ -70,8 +71,8 @@ class ModuleBase(Logging):
         :param parent_module: None or ModuleBase
         :param plugin: class Plugin (ModuleBase)
         :param name: str
-
     """
+
     WARNING = logging.WARNING
     DEBUG = logging.DEBUG
     INFO = logging.INFO
@@ -443,7 +444,7 @@ class ModuleBase(Logging):
 
         plugin = self.get_plugin()
 
-        icons_dir = plugin.icons_dir if not folder else folder
+        icons_dir = folder or plugin.icons_dir
 
         check = icon.lower()
         endings = (".png", ".jpg", ".jpeg", ".svg")
@@ -493,18 +494,16 @@ class ModuleBase(Logging):
                     self.log(f"Missing context '{context}' in file '{ts_file.as_posix()}'", level=self.DEBUG)
 
         translator = QTranslator()
-        # file found and loaded
-        if translator.load(file):
-            # add loaded translator to instance
-            if QCoreApplication.instance().installTranslator(translator):
-                self._translators.append(translator)
-                return True
+        # file found and loaded translator to instance
+        if translator.load(file) and QCoreApplication.instance().installTranslator(translator):
+            self._translators.append(translator)
+            return True
 
         return False
 
     @staticmethod
     def get_qtranslator_file_name(name: str):
-        """ returns the expected file name for the given name.
+        """ Returns the expected file name for the given name.
             "{name}_{language}.qm"
         """
         # get the current language/translation from QGIS
@@ -538,8 +537,7 @@ class ModuleBase(Logging):
         return result
 
     def install_filter(self, filter_: QgsLocatorFilter):
-        """ Register a locator filter for the search bar in QGIS.
-        """
+        """ Register a locator filter for the search bar in QGIS. """
 
         if not isinstance(filter_, QgsLocatorFilter):
             raise TypeError(f"Expecting instance of type QgsLocatorFilter, got {filter_.__class__.__name__}")
@@ -650,11 +648,10 @@ class ModuleBase(Logging):
 
     def set_ui_version_info(self, label: Optional[QLabel] = None, show_new_version_info: bool = True,
                             show_network_error: bool = True):
-        """
-        Reads the version from the repo and the local installation
-        and informs the user about possible updates.
+        """ Reads the version from the repo and the local installation
+            and informs the user about possible updates.
 
-        Returns `True`, if new update (commit or version number changed), otherwise `False`.
+            :returns: `True`, if new update (commit or version number changed), otherwise `False`.
         """
 
         repo_version = self.get_plugin().repo_version
@@ -740,10 +737,9 @@ class ModuleBase(Logging):
 
                 self.get_plugin().enable_update_action()
                 return True
-            else:
-                if label is not None:
-                    label.setText(f"Installiert: v{version} ({release_info}) - aktuell")
-                    label.setStyleSheet("color: rgb(0, 0, 255); }")
+            elif label is not None:
+                label.setText(f"Installiert: v{version} ({release_info}) - aktuell")
+                label.setStyleSheet("color: rgb(0, 0, 255); }")
 
         elif version > repo_version:
             if label is not None:
@@ -794,7 +790,7 @@ class ModuleBase(Logging):
         return False
 
     def get_main_plugin(self, next_plugin=False) -> Union[MB, PLUGIN]:
-        """ finds the highest available plugin-object.
+        """ Finds the highest available plugin-object.
             Plugin must base on Plugin class.
 
             :param next_plugin: True to find the next Plugin object in module hierarchy,
@@ -865,17 +861,15 @@ class ModuleBase(Logging):
         return toolbar
 
     def reset_qt_connections(self):
-        """ disconnects qt signal from QObject """
+        """ Disconnects qt signal from QObject """
         for obj, callable_, *_ in self._connections:
-            try:
+            with contextlib.suppress(RuntimeError, TypeError):
                 obj.disconnect(callable_)
-            except (RuntimeError, TypeError):
-                ...
 
         self._connections.clear()
 
     def unload(self, self_unload: bool = False):
-        """ will be called, when module will be unloaded
+        """ Will be called, when module will be unloaded
 
             :param self_unload: only self unload, defaults to False
         """
@@ -1018,12 +1012,11 @@ class ModuleBase(Logging):
         except AttributeError:
             attr = tuple()
 
-        if attr:
-            if isinstance(value, attr):
-                # escape ><
-                s = escape(str(value))
-                raise AttributeError(f"attribute {key} with value {s} of "
-                                     f"type {type(value).__name__} can not be set")
+        if attr and isinstance(value, attr):
+            # escape ><
+            s = escape(str(value))
+            raise AttributeError(f"attribute {key} with value {s} of "
+                                 f"type {type(value).__name__} can not be set")
 
         if key == "iface":
             raise AttributeError("attribute `iface` is reserved as property to get local `_iface` "
@@ -1052,10 +1045,8 @@ class ModuleBase(Logging):
     def __repr__(self):
         name = self.module_name if self.module_name else "< no name >"
         parent = self.get_parent()
-        if parent is None:
-            parent = "None"
-        else:
-            parent = parent.module_name
+        parent = "None" if parent is None else parent.module_name
+
         return f"{self.__class__.__name__}('{name}', parent={parent})"
 
 
@@ -1074,6 +1065,7 @@ class UiModuleBase(ModuleBase):
             class MyUiModule(UiModuleBase, QMainWindow):
                 ...
     """
+
     Yes = QMessageBox.Yes
     No = QMessageBox.No
 
@@ -1560,11 +1552,12 @@ class UiModuleBase(ModuleBase):
         return module
 
     def get_widget(self, object_name: str) -> Optional[QWidget]:
-        """ returns widget with given objectName """
+        """ Returns widget with given objectName """
         return self.findChild(QWidget, object_name)
 
     # noinspection PyPep8Naming
     def setupUi(self, widget: QWidget):
+        """ Calls the setupUi method of the first class in the MRO that has it defined. """
 
         use = None
         for x in reversed(self.__class__.__mro__[1:]):
@@ -1587,8 +1580,8 @@ class UiModuleBase(ModuleBase):
     def is_object_name_valid(object_name: str) -> bool:
         """ Checks if object name is valid.
 
-        :param object_name: object name
-        :return: True if ok, else raises ValueError
+            :param object_name: object name
+            :return: True if ok, else raises ValueError
         """
         if not fullmatch(r'[A-Za-z_][A-Za-z_0-9]+', object_name):
             raise ValueError(f"object name '{object_name}' is not valid")
@@ -1598,8 +1591,8 @@ class UiModuleBase(ModuleBase):
     def is_object_name_free(self, object_name: str) -> bool:
         """ Checks if object name is free and valid.
 
-        :param object_name: object name
-        :return: True if ok, else raises ValueError
+            :param object_name: object name
+            :return: True if ok, else raises ValueError
         """
         objects = self.findChildren(QWidget, object_name)
         names = [x.objectName() for x in objects]
@@ -1616,12 +1609,12 @@ class UiModuleBase(ModuleBase):
 
     def _create_frame(self, layout: QGridLayout, object_name: str,
                       position: Optional[Tuple[int, int]] = None) -> QFrame:
-        """ creates an empty frame in given layout as dummy.
+        """ Creates an empty frame in given layout as dummy.
 
-        :param layout: Layout where to insert new frame
-        :param object_name: object_name for new frame and attribute name for `self`
-        :param position: tuple(row, column) with position data in layout
-        :return: created frame
+            :param layout: Layout where to insert new frame
+            :param object_name: object_name for new frame and attribute name for `self`
+            :param position: tuple(row, column) with position data in layout
+            :return: created frame
         """
         # self.is_object_name_free(object_name)
         if not isinstance(layout, QGridLayout):
@@ -1643,14 +1636,14 @@ class UiModuleBase(ModuleBase):
         return page_frame
 
     def _create_widget(self, layout: QGridLayout, widget_type: Type[QWidget], object_name: str,
-                       position: Optional[Tuple[int, int]] = None) -> QFrame:
-        """ creates an empty frame in given layout as dummy.
+                       position: Optional[Tuple[int, int]] = None) -> QWidget:
+        """ Creates a widget of the given type in the specified layout.
 
-        :param layout: Layout where to insert new widget
-        :param widget_type: widget type to create
-        :param object_name: object_name for new frame and attribute name for `self`
-        :param position: tuple(row, column) with position data in layout
-        :return: created frame
+            :param layout: Layout where to insert new widget
+            :param widget_type: widget type to create
+            :param object_name: object_name for new widget and attribute name for `self`
+            :param position: tuple(row, column) with position data in layout
+            :return: created widget
         """
         # self.is_object_name_free(object_name)
         if not isinstance(layout, QGridLayout):
@@ -1696,9 +1689,7 @@ class UiModuleBase(ModuleBase):
 
     @staticmethod
     def is_my_plugin_in_dev_mode() -> bool:
-        """
-        checks if the plugin this submodule is a submodule to is in dev mode
-        """
+        """ Checks if the plugin this submodule is a submodule to is in dev mode """
         my_plugin_name = get_expected_plugin_folder_name()
         settings_path = f"plugins/{my_plugin_name}/Developer-Modus"
         dev_mode = QgsSettings().value(settings_path) is not None
@@ -1710,8 +1701,8 @@ class UiModuleBase(ModuleBase):
             and instead of 'py' as file ending looks for 'ui'.
             Python file and ui file must be in same folder.
 
-        :param python_file: path to python file -> __file__
-        :return:
+            :param python_file: path to python file -> __file__
+            :return:
         """
         base = os.path.basename(python_file)
         folder = os.path.dirname(python_file)
@@ -1730,15 +1721,14 @@ class UiModuleBase(ModuleBase):
 
     @classmethod
     def get_uic_classes(cls, python_or_ui_file: str) -> Tuple[Any, Type[QWidget]]:
-        """
-        Returns ui classes for given ui-file. If a Python file path is given, the relative ui-file-path will be used.
+        """ Returns ui classes for given ui-file. If a Python file path is given, the relative ui-file-path will be used.
 
         .. code-block: python
 
             FORM_CLASS, _ = UiModuleBase.get_uic_classes(__file__)
 
-        :param python_or_ui_file: Python file path or path to ui file
-        :return: tuple of form class (most needed) and Qt base class from Qt Designer, e.g QMainWindow
+            :param python_or_ui_file: Python file path or path to ui file
+            :return: tuple of form class (most needed) and Qt base class from Qt Designer, e.g QMainWindow
         """
 
         if not python_or_ui_file.endswith((".ui", ) + FILE_ENDINGS_PY_TO_UI):
@@ -1776,6 +1766,7 @@ class UiModuleBase(ModuleBase):
         return object_names
 
     def get_tab_stop_widgets(self, object_names: List[str]):
+        """ Returns a list of widgets for the given object names. """
         main_object = self.MainWidget or self
 
         objects = []
@@ -1791,6 +1782,10 @@ class UiModuleBase(ModuleBase):
         return objects
 
     def initialize_tab_stop_widgets(self):
+        """ Fills `tab_order_widgets` with the widgets of the tab stops defined in the ui file.
+
+            :raises ValueError: if the ui file defines tab stops, but none of their widgets were found
+        """
         names = self.get_tab_stops_from_ui_file(self.__file__)
         self.tab_order_widgets = self.get_tab_stop_widgets(names)
         if not self.tab_order_widgets and names:
@@ -1842,7 +1837,7 @@ class UiModuleBase(ModuleBase):
         self._tab_order_widgets = widgets
 
     def make_valid(self):
-        """ make object valid to use itself als 'MainWidget' """
+        """ Make object valid to use itself als 'MainWidget' """
         if getattr(self, 'MainWidget', None) is not None:
             raise TypeError("make_valid cannot be called, already 'MainWidget' here")
 
@@ -1875,7 +1870,7 @@ class UiModuleBase(ModuleBase):
                 self._post_check_results.append(text)
 
     def replace_with_empty_frame(self):
-        """ unload this module and replace it with an empty frame """
+        """ Unload this module and replace it with an empty frame """
 
         layout = self.MainWidget.parent().layout()
         if layout is None:
@@ -1913,7 +1908,7 @@ class UiModuleBase(ModuleBase):
         raise TypeError("Nothing found to replace :o")
 
     def replace_widget_with_class(self, current: QWidget, class_: Type[QWidget]) -> QWidget:
-        """ replace current QWidget with another base class """
+        """ Replace current QWidget with another base class """
         new = class_(parent=current.parent())
 
         # copy font settings
@@ -1932,7 +1927,7 @@ class UiModuleBase(ModuleBase):
         return self.replace_widget_with_widget(current, new)
 
     def replace_widget_with_widget(self, current: QWidget, new: QWidget) -> QWidget:
-        """ replace current QWidget with another widget """
+        """ Replace current QWidget with another widget """
         name = current.objectName()
         layout = current.parent().layout()
         current.setObjectName("")
@@ -1962,7 +1957,7 @@ class UiModuleBase(ModuleBase):
     def about_to_quit(self):
         """ QCoreApplication is about to quit/close """
 
-        self.log(f"QApplication is about to quit, cancel progress")
+        self.log("QApplication is about to quit, cancel progress")
 
         # cancel something?
         if hasattr(self, "cancel"):
@@ -2017,7 +2012,12 @@ class UiModuleBase(ModuleBase):
         return QMessageBox.warning(parent, title, text)
 
     def unload(self, self_unload: bool = False):
-        """ will be called, when module will be unloaded
+        """ Will be called, when module will be unloaded.
+
+            A `QWidget` module is closed and detached from its parent here, the actual
+            destruction is deferred to Qt via `deleteLater`. A top level widget keeps its
+            parent, because reparenting destroys its native window immediately, which
+            crashes QGIS while Qt is still dispatching that window's close event.
 
             :param self_unload: only self unload, defaults to False
         """
@@ -2036,5 +2036,6 @@ class UiModuleBase(ModuleBase):
 
         if isinstance(self, QWidget):
             self.close()
-            self.setParent(None)
+            if not self.isWindow():
+                self.setParent(None)
             self.deleteLater()
