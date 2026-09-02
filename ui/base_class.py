@@ -494,7 +494,7 @@ class ModuleBase(Logging):
                     self.log(f"Missing context '{context}' in file '{ts_file.as_posix()}'", level=self.DEBUG)
 
         translator = QTranslator()
-        # file found and loaded and loaded translator to instance
+        # file found and loaded translator to instance
         if translator.load(file) and QCoreApplication.instance().installTranslator(translator):
             self._translators.append(translator)
             return True
