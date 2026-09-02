@@ -1016,7 +1016,7 @@ class ModuleBase(Logging):
             # escape ><
             s = escape(str(value))
             raise AttributeError(f"attribute {key} with value {s} of "
-                                    f"type {type(value).__name__} can not be set")
+                                 f"type {type(value).__name__} can not be set")
 
         if key == "iface":
             raise AttributeError("attribute `iface` is reserved as property to get local `_iface` "
