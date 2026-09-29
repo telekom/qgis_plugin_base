@@ -19,8 +19,7 @@ SQL_TABLE_EXISTS = "SELECT COUNT(table_name) FROM gpkg_contents WHERE table_name
 
 
 class GeoPackage:
-    """ This class provides read methods to the sqlite3
-        database.
+    """ Provides read methods to the sqlite3 database.
         GeoPackage: www.geopackage.org
 
         :param path: path to geo package file
@@ -29,12 +28,8 @@ class GeoPackage:
     def __init__(self, path: str) -> None:
         self.path: str = path
 
-    def connect(self) -> sqlite3.Connection:
-        """ connects to geo package file and returns connection object
-
-            :return: connection,
-            :rtype: sqlite3.Connection
-        """
+    def __get_connection(self) -> sqlite3.Connection:
+        """ Connects to geo package file and returns connection object """
 
         return sqlite3.connect(self.path)
 
@@ -45,7 +40,7 @@ class GeoPackage:
             :param layer_name: case sensitive layer name
         """
 
-        con = self.connect()
+        con = self.__get_connection()
         cur = con.cursor()
         cur.execute(SQL_TABLE_EXISTS, (layer_name, ))
         result = cur.fetchone()
@@ -54,13 +49,13 @@ class GeoPackage:
         return bool(result[0])
 
     def get_layers(self) -> Dict[str, Dict[str, Union[Any, Dict[str, str]]]]:
-        """ get all available layers in geo package
+        """ Get all available layers in geo package.
 
             :return: dict with available layers
         """
         layers = {}
 
-        con = self.connect()
+        con = self.__get_connection()
         cur = con.cursor()
         cur.execute(SQL_JOINED_TABLES)
 
@@ -92,7 +87,7 @@ class GeoPackage:
         return layers
 
     def get_uri(self, layer_name: str) -> str:
-        """ creates qgis compatible uri to access layer in geo package file
+        """ Creates qgis compatible uri to access layer in geo package file.
 
             :param layer_name: layer name/table name
             :return: path to layer
@@ -113,7 +108,7 @@ class GeoPackage:
         if not self.has_layer(table_name):
             raise ValueError(f"Missing table '{table_name}'")
 
-        con = self.connect()
+        con = self.__get_connection()
         cur = con.cursor()
 
         for column in cur.execute(SQL_LAYER_COLUMNS % table_name):
@@ -132,7 +127,7 @@ class GeoPackage:
         return columns
 
     def fetchone(self, query: str, args: Optional[list] = None) -> Optional[tuple]:
-        """ fetches one sql value from query
+        """ Fetches one sql value from query.
 
             :param query: query string
             :param args: query string, indexed iterable, like list/tuple
@@ -142,45 +137,46 @@ class GeoPackage:
         if args is None:
             args = []
 
-        con = self.connect()
+        con = self.__get_connection()
         cur = con.cursor()
         cur.execute(query, args)
         result = cur.fetchone()
+        con.close()
 
         return result
 
     def fetchmany(self, query: str, args: Optional[list] = None):
-        """ fetches many sql values from query
+        """ Fetches many sql values from query.
 
             :param query: query string
             :param args: query string, indexed iterable, like list/tuple
-            :return: any
         """
 
         if args is None:
             args = []
 
-        con = self.connect()
+        con = self.__get_connection()
         cur = con.cursor()
         cur.execute(query, args)
         result = cur.fetchmany()
+        con.close()
 
         return result
 
     def fetchall(self, query: str, args: Optional[list] = None):
-        """ fetches all sql values from query
+        """ Fetches all sql values from query.
 
             :param query: query string
             :param args: query string, indexed iterable, like list/tuple
-            :return: any
         """
 
         if args is None:
             args = []
 
-        con = self.connect()
+        con = self.__get_connection()
         cur = con.cursor()
         cur.execute(query, args)
         result = cur.fetchall()
+        con.close()
 
         return result
