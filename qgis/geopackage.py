@@ -7,10 +7,10 @@ from typing import Any, Dict, Optional, Union
 
 SQL_ALL_LAYERS = """SELECT table_name, column_name, geometry_type_name, srs_id FROM gpkg_geometry_columns;"""
 SQL_ALL_TABLES = """SELECT table_name, data_type, identifier FROM gpkg_contents;"""
-SQL_JOINED_TABLES = """SELECT gpkg_contents.table_name, gpkg_contents.data_type, gpkg_contents.identifier, 
-                              gpkg_geometry_columns.column_name, gpkg_geometry_columns.geometry_type_name, 
-                              gpkg_geometry_columns.srs_id 
-                       FROM gpkg_contents LEFT JOIN gpkg_geometry_columns 
+SQL_JOINED_TABLES = """SELECT gpkg_contents.table_name, gpkg_contents.data_type, gpkg_contents.identifier,
+                              gpkg_geometry_columns.column_name, gpkg_geometry_columns.geometry_type_name,
+                              gpkg_geometry_columns.srs_id
+                       FROM gpkg_contents LEFT JOIN gpkg_geometry_columns
                                                     ON gpkg_contents.table_name=gpkg_geometry_columns.table_name;"""
 SQL_LAYER_COLUMNS = """PRAGMA table_info(%s);"""
 SQL_SRS = ("""SELECT srs_name, srs_id, organization, organization_coordsys_id, definition, description """
@@ -41,10 +41,15 @@ class GeoPackage:
         """
 
         con = self.__get_connection()
-        cur = con.cursor()
-        cur.execute(SQL_TABLE_EXISTS, (layer_name, ))
-        result = cur.fetchone()
-        con.close()
+        try:
+            # run the sqlite query, do not catch explicitly exceptions here
+            # only try&finally
+            cur = con.cursor()
+            cur.execute(SQL_TABLE_EXISTS, (layer_name, ))
+            result = cur.fetchone()
+        finally:
+            # closes always the connection
+            con.close()
 
         return bool(result[0])
 
@@ -56,33 +61,37 @@ class GeoPackage:
         layers = {}
 
         con = self.__get_connection()
-        cur = con.cursor()
-        cur.execute(SQL_JOINED_TABLES)
+        try:
+            # run the sqlite query, do not catch explicitly exceptions here
+            # only try&finally
+            cur = con.cursor()
+            cur.execute(SQL_JOINED_TABLES)
 
-        for table_name, data_type, identifier, column_name, geometry_type_name, srs_id in cur.fetchall():
-            if srs_id is not None:
-                cur.execute(SQL_SRS, (srs_id,))
-                srs_name, srs_id, organization, organization_coord_sys_id, definition, description = cur.fetchone()
-            else:
-                srs_name = organization = organization_coord_sys_id = definition = description = None
-            layers[table_name] = {
-                'name': table_name,  # table-/layer name
-                'geometrycolumn': column_name,  # column for geometry
-                'geometrytype': geometry_type_name,  # geometry type, e.g. POINT
-                'data_type': data_type,  # feature for features with SRS and attribute for NON geometry values
-                'identifier': identifier,  # identifier, usually equal to table_name
-                'srs': {  # srs id for x/y transform
-                    'srsid': srs_id,  # srs id, None in case of no SRS set (e.g.
-                    'srs_name': srs_name,  # display name of srs
-                    'organization': organization,  # e.g. EPSG
-                    'organization_coordsys_id': organization_coord_sys_id,
-                    'definition': definition,
-                    'description': description,
-                },
-                'uri': self.get_uri(table_name),  # qgis uri to access this layer
-            }
-
-        con.close()
+            for table_name, data_type, identifier, column_name, geometry_type_name, srs_id in cur.fetchall():
+                if srs_id is not None:
+                    cur.execute(SQL_SRS, (srs_id,))
+                    srs_name, srs_id, organization, organization_coord_sys_id, definition, description = cur.fetchone()
+                else:
+                    srs_name = organization = organization_coord_sys_id = definition = description = None
+                layers[table_name] = {
+                    'name': table_name,  # table-/layer name
+                    'geometrycolumn': column_name,  # column for geometry
+                    'geometrytype': geometry_type_name,  # geometry type, e.g. POINT
+                    'data_type': data_type,  # feature for features with SRS and attribute for NON geometry values
+                    'identifier': identifier,  # identifier, usually equal to table_name
+                    'srs': {  # srs id for x/y transform
+                        'srsid': srs_id,  # srs id, None in case of no SRS set (e.g.
+                        'srs_name': srs_name,  # display name of srs
+                        'organization': organization,  # e.g. EPSG
+                        'organization_coordsys_id': organization_coord_sys_id,
+                        'definition': definition,
+                        'description': description,
+                    },
+                    'uri': self.get_uri(table_name),  # qgis uri to access this layer
+                }
+        finally:
+            # closes always the connection
+            con.close()
 
         return layers
 
@@ -109,20 +118,24 @@ class GeoPackage:
             raise ValueError(f"Missing table '{table_name}'")
 
         con = self.__get_connection()
-        cur = con.cursor()
+        try:
+            # run the sqlite query, do not catch explicitly exceptions here
+            # only try&finally
+            cur = con.cursor()
 
-        for column in cur.execute(SQL_LAYER_COLUMNS % table_name):
-            index, name, value_type, notnull, default, primary = column
-            columns[name] = {
-                'index': index,
-                'column': name,
-                'type': value_type,
-                'notnull': notnull,
-                'default': default,
-                'primary': primary,
-            }
-
-        con.close()
+            for column in cur.execute(SQL_LAYER_COLUMNS % table_name):
+                index, name, value_type, notnull, default, primary = column
+                columns[name] = {
+                    'index': index,
+                    'column': name,
+                    'type': value_type,
+                    'notnull': notnull,
+                    'default': default,
+                    'primary': primary,
+                }
+        finally:
+            # closes always the connection
+            con.close()
 
         return columns
 
@@ -138,10 +151,15 @@ class GeoPackage:
             args = []
 
         con = self.__get_connection()
-        cur = con.cursor()
-        cur.execute(query, args)
-        result = cur.fetchone()
-        con.close()
+        try:
+            # run the sqlite query, do not catch explicitly exceptions here
+            # only try&finally
+            cur = con.cursor()
+            cur.execute(query, args)
+            result = cur.fetchone()
+        finally:
+            # closes always the connection
+            con.close()
 
         return result
 
@@ -156,10 +174,15 @@ class GeoPackage:
             args = []
 
         con = self.__get_connection()
-        cur = con.cursor()
-        cur.execute(query, args)
-        result = cur.fetchmany()
-        con.close()
+        try:
+            # run the sqlite query, do not catch explicitly exceptions here
+            # only try&finally
+            cur = con.cursor()
+            cur.execute(query, args)
+            result = cur.fetchmany()
+        finally:
+            # closes always the connection
+            con.close()
 
         return result
 
@@ -174,9 +197,14 @@ class GeoPackage:
             args = []
 
         con = self.__get_connection()
-        cur = con.cursor()
-        cur.execute(query, args)
-        result = cur.fetchall()
-        con.close()
+        try:
+            # run the sqlite query, do not catch explicitly exceptions here
+            # only try&finally
+            cur = con.cursor()
+            cur.execute(query, args)
+            result = cur.fetchall()
+        finally:
+            # closes always the connection
+            con.close()
 
         return result
