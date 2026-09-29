@@ -2,6 +2,8 @@
 # SPDX-FileCopyrightText: 2025 Deutsche Telekom Technik GmbH <f.vonstudsinske@telekom.de>
 # SPDX-License-Identifier: GPL-3.0-only
 
+import math
+
 import pytest
 
 from qgis.core import QgsGeometry, QgsRectangle
@@ -78,6 +80,29 @@ def test_small_geometry_in_one_rectangle(plugin_qgis_new_project):
 
     assert len(rectangles) == 1
     assert QgsGeometry.fromRect(rectangles[0]).contains(geometry)
+
+
+def test_long_diagonal_line_only_creates_positions_for_crossed_grid_cells(plugin_qgis_new_project):
+    from ...qgis.plot_rectangles_from_geometries import PlotRectanglesFromGeometries
+
+    geometry = QgsGeometry.fromWkt('LineString (0 0, 10000 7000)')
+    plot = PlotRectanglesFromGeometries([geometry], [PLOT_RECTANGLE])
+    bb = geometry.boundingBox()
+    cell_width = PLOT_RECTANGLE.width() * (1 - plot.overlap) / 2
+    cell_height = PLOT_RECTANGLE.height() * (1 - plot.overlap) / 2
+    columns = math.ceil(bb.width() / cell_width)
+    rows = math.ceil(bb.height() / cell_height)
+    candidate_cells = plot._PlotRectanglesFromGeometries__line_grid_cells(
+        geometry, (bb.xMinimum(), bb.yMinimum(), cell_width, cell_height, columns, rows))
+
+    plot.add_geometry(geometry)
+
+    assert candidate_cells is not None
+    assert 0 < len(candidate_cells) < columns * rows / 10
+    assert len(plot.positions) < 1000
+    plot.run()
+    assert not plot.positions
+    _assert_all_contained([geometry], plot.rectangles)
 
 
 def test_nearby_geometries_share_rectangle(plugin_qgis_new_project):

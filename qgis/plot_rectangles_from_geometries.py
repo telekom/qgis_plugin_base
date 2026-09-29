@@ -7,9 +7,10 @@ import math
 
 from bisect import bisect_right
 from dataclasses import dataclass
-from typing import List, Optional
+from itertools import pairwise
+from typing import List, Optional, Set, Tuple
 
-from qgis.core import QgsGeometry, QgsRectangle
+from qgis.core import QgsGeometry, QgsRectangle, QgsWkbTypes
 from qgis.PyQt.QtCore import QObject, pyqtSignal
 
 from .geometry import is_geometry_valid
@@ -226,19 +227,79 @@ class PlotRectanglesFromGeometries(QObject):
 
         columns = max(1, math.ceil(bb.width() / cell_width))
         rows = max(1, math.ceil(bb.height() / cell_height))
-        for column in range(columns):
-            for row in range(rows):
-                x = bb.xMinimum() + column * cell_width
-                y = bb.yMinimum() + row * cell_height
-                cell = QgsGeometry.fromRect(QgsRectangle(x, y, x + cell_width, y + cell_height))
-                if not engine.intersects(cell.constGet()):
-                    continue
+        grid = (bb.xMinimum(), bb.yMinimum(), cell_width, cell_height, columns, rows)
+        line_cells = self.__line_grid_cells(geometry, grid)
+        cell_indices = (sorted(line_cells) if line_cells is not None else
+                        ((column, row) for column in range(columns) for row in range(rows)))
+        for column, row in cell_indices:
+            x = bb.xMinimum() + column * cell_width
+            y = bb.yMinimum() + row * cell_height
+            cell = QgsGeometry.fromRect(QgsRectangle(x, y, x + cell_width, y + cell_height))
+            if not engine.intersects(cell.constGet()):
+                continue
 
-                intersection = geometry.intersection(cell)
-                if intersection.isNull() or intersection.isEmpty():
-                    continue
+            intersection = geometry.intersection(cell)
+            if intersection.isNull() or intersection.isEmpty():
+                continue
 
-                self.__add_rectangle(intersection.boundingBox())
+            self.__add_rectangle(intersection.boundingBox())
+
+    @staticmethod
+    def __line_grid_cells(geometry: QgsGeometry, grid: Tuple[float, float, float, float, int, int]
+                          ) -> Optional[Set[Tuple[int, int]]]:
+        """Return grid cells crossed by a linear geometry, or None for other geometry types."""
+        if geometry.type() != QgsWkbTypes.LineGeometry:
+            return None
+
+        polylines = geometry.asMultiPolyline() if geometry.isMultipart() else [geometry.asPolyline()]
+        if not polylines or any(not polyline for polyline in polylines):
+            return None
+
+        cells = set()
+        for polyline in polylines:
+            if len(polyline) == 1:
+                cells.update(PlotRectanglesFromGeometries.__segment_grid_cells(polyline[0], polyline[0], grid))
+            for start, end in pairwise(polyline):
+                cells.update(PlotRectanglesFromGeometries.__segment_grid_cells(start, end, grid))
+
+        return cells
+
+    @staticmethod
+    def __segment_grid_cells(start, end, grid: Tuple[float, float, float, float, int, int]
+                             ) -> Set[Tuple[int, int]]:
+        """Traverse one segment through the grid using a 2D digital differential analyzer."""
+        column = min(grid[4] - 1, max(0, math.floor((start.x() - grid[0]) / grid[2])))
+        row = min(grid[5] - 1, max(0, math.floor((start.y() - grid[1]) / grid[3])))
+        end_column = min(grid[4] - 1, max(0, math.floor((end.x() - grid[0]) / grid[2])))
+        end_row = min(grid[5] - 1, max(0, math.floor((end.y() - grid[1]) / grid[3])))
+        cells = {(column, row)}
+
+        dx = end.x() - start.x()
+        dy = end.y() - start.y()
+        step_x = 1 if dx > 0 else -1 if dx < 0 else 0
+        step_y = 1 if dy > 0 else -1 if dy < 0 else 0
+        delta_x = grid[2] / abs(dx) if dx else math.inf
+        delta_y = grid[3] / abs(dy) if dy else math.inf
+        max_x = ((grid[0] + (column + 1) * grid[2] - start.x()) / dx if step_x > 0 else
+                 (grid[0] + column * grid[2] - start.x()) / dx if step_x < 0 else math.inf)
+        max_y = ((grid[1] + (row + 1) * grid[3] - start.y()) / dy if step_y > 0 else
+                 (grid[1] + row * grid[3] - start.y()) / dy if step_y < 0 else math.inf)
+
+        while column != end_column or row != end_row:
+            if max_x < max_y:
+                column += step_x
+                max_x += delta_x
+            elif max_y < max_x:
+                row += step_y
+                max_y += delta_y
+            else:
+                column += step_x
+                row += step_y
+                max_x += delta_x
+                max_y += delta_y
+            cells.add((column, row))
+
+        return cells
 
     def __add_rectangle(self, bb: QgsRectangle):
         """Add a geometry bounding box to the intermediate positions."""
