@@ -31,7 +31,6 @@ WKT_PLOT_RECTANGLES_GEOMETRIES = [
 ]
 
 
-# WMS rendering during the PDF export crashes outside of the QGIS application (access violation)
 def test_plot_rectangles_from_geometries_pdf(plugin_qgis_new_project, qgis_activate_internet_proxy):
 
     crs = QgsCoordinateReferenceSystem("EPSG:25832")
