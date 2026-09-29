@@ -28,10 +28,6 @@ UPDATE_HINT_COMPILED = """
 </ol>
 """
 
-DEFAULT_CHROME_PATH = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-DEFAULT_MSEDGE_PATH = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-DEFAULT_FIREFOX_PATH = r"C:\Program Files\Mozilla Firefox\firefox.exe"
-
 
 # geometry handling
 N_NONE = 0 # no neighbor
