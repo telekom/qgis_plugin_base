@@ -7,10 +7,10 @@ from typing import Any, Dict, Optional, Union
 
 SQL_ALL_LAYERS = """SELECT table_name, column_name, geometry_type_name, srs_id FROM gpkg_geometry_columns;"""
 SQL_ALL_TABLES = """SELECT table_name, data_type, identifier FROM gpkg_contents;"""
-SQL_JOINED_TABLES = """SELECT gpkg_contents.table_name, gpkg_contents.data_type, gpkg_contents.identifier, 
-                              gpkg_geometry_columns.column_name, gpkg_geometry_columns.geometry_type_name, 
-                              gpkg_geometry_columns.srs_id 
-                       FROM gpkg_contents LEFT JOIN gpkg_geometry_columns 
+SQL_JOINED_TABLES = """SELECT gpkg_contents.table_name, gpkg_contents.data_type, gpkg_contents.identifier,
+                              gpkg_geometry_columns.column_name, gpkg_geometry_columns.geometry_type_name,
+                              gpkg_geometry_columns.srs_id
+                       FROM gpkg_contents LEFT JOIN gpkg_geometry_columns
                                                     ON gpkg_contents.table_name=gpkg_geometry_columns.table_name;"""
 SQL_LAYER_COLUMNS = """PRAGMA table_info(%s);"""
 SQL_SRS = ("""SELECT srs_name, srs_id, organization, organization_coordsys_id, definition, description """
@@ -19,8 +19,7 @@ SQL_TABLE_EXISTS = "SELECT COUNT(table_name) FROM gpkg_contents WHERE table_name
 
 
 class GeoPackage:
-    """ This class provides read methods to the sqlite3
-        database.
+    """ Provides read methods to the sqlite3 database.
         GeoPackage: www.geopackage.org
 
         :param path: path to geo package file
@@ -29,12 +28,8 @@ class GeoPackage:
     def __init__(self, path: str) -> None:
         self.path: str = path
 
-    def connect(self) -> sqlite3.Connection:
-        """ connects to geo package file and returns connection object
-
-            :return: connection,
-            :rtype: sqlite3.Connection
-        """
+    def __get_connection(self) -> sqlite3.Connection:
+        """ Connects to geo package file and returns connection object """
 
         return sqlite3.connect(self.path)
 
@@ -45,54 +40,63 @@ class GeoPackage:
             :param layer_name: case sensitive layer name
         """
 
-        con = self.connect()
-        cur = con.cursor()
-        cur.execute(SQL_TABLE_EXISTS, (layer_name, ))
-        result = cur.fetchone()
-        con.close()
+        con = self.__get_connection()
+        try:
+            # run the sqlite query, do not catch explicitly exceptions here
+            # only try&finally
+            cur = con.cursor()
+            cur.execute(SQL_TABLE_EXISTS, (layer_name, ))
+            result = cur.fetchone()
+        finally:
+            # closes always the connection
+            con.close()
 
         return bool(result[0])
 
     def get_layers(self) -> Dict[str, Dict[str, Union[Any, Dict[str, str]]]]:
-        """ get all available layers in geo package
+        """ Get all available layers in geo package.
 
             :return: dict with available layers
         """
         layers = {}
 
-        con = self.connect()
-        cur = con.cursor()
-        cur.execute(SQL_JOINED_TABLES)
+        con = self.__get_connection()
+        try:
+            # run the sqlite query, do not catch explicitly exceptions here
+            # only try&finally
+            cur = con.cursor()
+            cur.execute(SQL_JOINED_TABLES)
 
-        for table_name, data_type, identifier, column_name, geometry_type_name, srs_id in cur.fetchall():
-            if srs_id is not None:
-                cur.execute(SQL_SRS, (srs_id,))
-                srs_name, srs_id, organization, organization_coord_sys_id, definition, description = cur.fetchone()
-            else:
-                srs_name = organization = organization_coord_sys_id = definition = description = None
-            layers[table_name] = {
-                'name': table_name,  # table-/layer name
-                'geometrycolumn': column_name,  # column for geometry
-                'geometrytype': geometry_type_name,  # geometry type, e.g. POINT
-                'data_type': data_type,  # feature for features with SRS and attribute for NON geometry values
-                'identifier': identifier,  # identifier, usually equal to table_name
-                'srs': {  # srs id for x/y transform
-                    'srsid': srs_id,  # srs id, None in case of no SRS set (e.g.
-                    'srs_name': srs_name,  # display name of srs
-                    'organization': organization,  # e.g. EPSG
-                    'organization_coordsys_id': organization_coord_sys_id,
-                    'definition': definition,
-                    'description': description,
-                },
-                'uri': self.get_uri(table_name),  # qgis uri to access this layer
-            }
-
-        con.close()
+            for table_name, data_type, identifier, column_name, geometry_type_name, srs_id in cur.fetchall():
+                if srs_id is not None:
+                    cur.execute(SQL_SRS, (srs_id,))
+                    srs_name, srs_id, organization, organization_coord_sys_id, definition, description = cur.fetchone()
+                else:
+                    srs_name = organization = organization_coord_sys_id = definition = description = None
+                layers[table_name] = {
+                    'name': table_name,  # table-/layer name
+                    'geometrycolumn': column_name,  # column for geometry
+                    'geometrytype': geometry_type_name,  # geometry type, e.g. POINT
+                    'data_type': data_type,  # feature for features with SRS and attribute for NON geometry values
+                    'identifier': identifier,  # identifier, usually equal to table_name
+                    'srs': {  # srs id for x/y transform
+                        'srsid': srs_id,  # srs id, None in case of no SRS set (e.g.
+                        'srs_name': srs_name,  # display name of srs
+                        'organization': organization,  # e.g. EPSG
+                        'organization_coordsys_id': organization_coord_sys_id,
+                        'definition': definition,
+                        'description': description,
+                    },
+                    'uri': self.get_uri(table_name),  # qgis uri to access this layer
+                }
+        finally:
+            # closes always the connection
+            con.close()
 
         return layers
 
     def get_uri(self, layer_name: str) -> str:
-        """ creates qgis compatible uri to access layer in geo package file
+        """ Creates qgis compatible uri to access layer in geo package file.
 
             :param layer_name: layer name/table name
             :return: path to layer
@@ -113,26 +117,30 @@ class GeoPackage:
         if not self.has_layer(table_name):
             raise ValueError(f"Missing table '{table_name}'")
 
-        con = self.connect()
-        cur = con.cursor()
+        con = self.__get_connection()
+        try:
+            # run the sqlite query, do not catch explicitly exceptions here
+            # only try&finally
+            cur = con.cursor()
 
-        for column in cur.execute(SQL_LAYER_COLUMNS % table_name):
-            index, name, value_type, notnull, default, primary = column
-            columns[name] = {
-                'index': index,
-                'column': name,
-                'type': value_type,
-                'notnull': notnull,
-                'default': default,
-                'primary': primary,
-            }
-
-        con.close()
+            for column in cur.execute(SQL_LAYER_COLUMNS % table_name):
+                index, name, value_type, notnull, default, primary = column
+                columns[name] = {
+                    'index': index,
+                    'column': name,
+                    'type': value_type,
+                    'notnull': notnull,
+                    'default': default,
+                    'primary': primary,
+                }
+        finally:
+            # closes always the connection
+            con.close()
 
         return columns
 
     def fetchone(self, query: str, args: Optional[list] = None) -> Optional[tuple]:
-        """ fetches one sql value from query
+        """ Fetches one sql value from query.
 
             :param query: query string
             :param args: query string, indexed iterable, like list/tuple
@@ -142,45 +150,61 @@ class GeoPackage:
         if args is None:
             args = []
 
-        con = self.connect()
-        cur = con.cursor()
-        cur.execute(query, args)
-        result = cur.fetchone()
+        con = self.__get_connection()
+        try:
+            # run the sqlite query, do not catch explicitly exceptions here
+            # only try&finally
+            cur = con.cursor()
+            cur.execute(query, args)
+            result = cur.fetchone()
+        finally:
+            # closes always the connection
+            con.close()
 
         return result
 
     def fetchmany(self, query: str, args: Optional[list] = None):
-        """ fetches many sql values from query
+        """ Fetches many sql values from query.
 
             :param query: query string
             :param args: query string, indexed iterable, like list/tuple
-            :return: any
         """
 
         if args is None:
             args = []
 
-        con = self.connect()
-        cur = con.cursor()
-        cur.execute(query, args)
-        result = cur.fetchmany()
+        con = self.__get_connection()
+        try:
+            # run the sqlite query, do not catch explicitly exceptions here
+            # only try&finally
+            cur = con.cursor()
+            cur.execute(query, args)
+            result = cur.fetchmany()
+        finally:
+            # closes always the connection
+            con.close()
 
         return result
 
     def fetchall(self, query: str, args: Optional[list] = None):
-        """ fetches all sql values from query
+        """ Fetches all sql values from query.
 
             :param query: query string
             :param args: query string, indexed iterable, like list/tuple
-            :return: any
         """
 
         if args is None:
             args = []
 
-        con = self.connect()
-        cur = con.cursor()
-        cur.execute(query, args)
-        result = cur.fetchall()
+        con = self.__get_connection()
+        try:
+            # run the sqlite query, do not catch explicitly exceptions here
+            # only try&finally
+            cur = con.cursor()
+            cur.execute(query, args)
+            result = cur.fetchall()
+        finally:
+            # closes always the connection
+            con.close()
 
         return result
