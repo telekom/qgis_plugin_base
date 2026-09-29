@@ -3,14 +3,52 @@
 # SPDX-License-Identifier: GPL-3.0-only
 
 import tempfile
-
 from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
 from qgis.core import QgsVectorLayer
+
 from .constants import TEMP_TEST_RESULTS
 from .fixtures import plugin_qgis_new_project
 from ..qgis.geopackage import GeoPackage
 
 ROOT_DIR = Path(__file__).parent
+
+
+@pytest.mark.parametrize("method,args", [
+    ("has_layer", ("test_layer",)),
+    ("get_layers", ()),
+    ("get_columns", ("test_layer",)),
+    ("fetchone", ("SELECT 1",)),
+    ("fetchmany", ("SELECT 1",)),
+    ("fetchall", ("SELECT 1",)),
+])
+@pytest.mark.parametrize("failure_point", ["execute", "fetch"])
+def test_geopackage_closes_connection_on_query_failure(monkeypatch, method, args, failure_point):
+    gpkg = GeoPackage("unused.gpkg")
+    connection = MagicMock()
+    cursor = connection.cursor.return_value
+    error = RuntimeError("query failed")
+    monkeypatch.setattr(gpkg, "_GeoPackage__get_connection", lambda: connection)
+
+    if method == "get_columns":
+        # The existence check uses a separate connection; isolate the query under test.
+        monkeypatch.setattr(gpkg, "has_layer", lambda name: True)
+
+    if failure_point == "execute":
+        cursor.execute.side_effect = error
+    elif method == "get_columns":
+        cursor.execute.return_value.__iter__.side_effect = error
+    else:
+        fetch_method = {"has_layer": "fetchone", "get_layers": "fetchall"}.get(method, method)
+        getattr(cursor, fetch_method).side_effect = error
+
+    with pytest.raises(RuntimeError) as exc_info:
+        getattr(gpkg, method)(*args)
+
+    assert exc_info.value is error
+    connection.close.assert_called_once_with()
 
 
 def test_geopackage_only_layers(plugin_qgis_new_project):
