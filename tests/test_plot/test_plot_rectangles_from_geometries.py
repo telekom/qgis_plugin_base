@@ -200,6 +200,23 @@ def test_selects_template_covering_most_positions(plugin_qgis_new_project, point
     _assert_all_contained(geometries, plot.rectangles)
 
 
+def test_mixed_templates_do_not_lose_positions_with_tall_offset_geometry(plugin_qgis_new_project):
+    from ...qgis.plot_rectangles_from_geometries import PlotRectanglesFromGeometries
+
+    templates = [QgsRectangle(0, 0, 100, 50), QgsRectangle(0, 0, 50, 100)]
+    geometries = [
+        QgsGeometry.fromWkt('Polygon ((0 0, 60 0, 60 40, 0 40, 0 0))'),
+        QgsGeometry.fromWkt('Polygon ((60 -40, 90 -40, 90 30, 60 30, 60 -40))'),
+    ]
+    plot = PlotRectanglesFromGeometries(geometries, templates)
+    plot.run()
+
+    assert not plot.positions
+    assert plot.rectangle_template_indices == [0, 1]
+    _assert_rectangle_sizes(plot, templates)
+    _assert_all_contained(geometries, plot.rectangles)
+
+
 def test_equal_coverage_uses_first_template(plugin_qgis_new_project):
     from ...qgis.plot_rectangles_from_geometries import PlotRectanglesFromGeometries
 

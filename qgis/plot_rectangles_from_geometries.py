@@ -144,6 +144,7 @@ class PlotRectanglesFromGeometries(QObject):
                 for i in strip:
                     pos = ordered[i]
                     if (pos.xmax - xmin <= width_overlap
+                            and pos.ymax - pos.ymin <= height_overlap
                             and abs(pos.ymin - start.ymin) <= height_overlap
                             and abs(pos.ymax - start.ymin) <= height_overlap
                             and (ymin is None or pos.ymin < ymin)):
@@ -159,7 +160,14 @@ class PlotRectanglesFromGeometries(QObject):
                     best_candidate = (template_index, group)
 
             if best_candidate is None:
-                break
+                # Prepared positions must fit at least one template. Keep a defensive
+                # singleton fallback so a grouping edge case cannot silently drop one.
+                template_index = next((i for i, template in enumerate(self.templates)
+                                       if start.xmax - start.xmin <= template.width() * (1 - self.overlap)
+                                       and start.ymax - start.ymin <= template.height() * (1 - self.overlap)), None)
+                if template_index is None:
+                    raise RuntimeError(f"No template can fit position {start}")
+                best_candidate = (template_index, [start_index])
 
             template_index, group = best_candidate
 
