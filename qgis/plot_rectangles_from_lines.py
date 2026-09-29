@@ -147,7 +147,8 @@ class PlotRectanglesFromLines(QObject):
             bx, by = line[index + 1].x(), line[index + 1].y()
             dx, dy = bx - ax, by - ay
 
-            # covered intervals of the segment parameter t (0 = start, 1 = end)
+            # Express each covered part as a fraction of this segment: t=0 is (ax, ay),
+            # t=1 is (bx, by). The intervals may overlap or touch one another.
             intervals = [interval for area in self.__covered_areas
                          if (interval := self.__clip_segment(ax, ay, dx, dy, area)) is not None]
             t = 0.0
@@ -156,10 +157,13 @@ class PlotRectanglesFromLines(QObject):
                 extended = False
                 for t0, t1 in intervals:
                     if t0 <= t + T_TOLERANCE and t1 > t:
+                        # Extend the covered prefix; repeat because this extension may
+                        # now connect to another interval later in the list.
                         t = t1
                         extended = True
 
             if t < 1.0 - T_TOLERANCE:
+                # The segment has an uncovered remainder; interpolate its first point.
                 return index, (ax + t * dx, ay + t * dy), False
 
             ax, ay = bx, by
@@ -174,18 +178,24 @@ class PlotRectanglesFromLines(QObject):
                        area: Tuple[float, float, float, float]) -> Optional[Tuple[float, float]]:
         """ Returns the parameter interval (t0, t1) of the segment inside the area (Liang-Barsky) or None. """
         xmin, ymin, xmax, ymax = area
+        # Start with the full segment [0, 1], then clip it against the rectangle's
+        # four sides. Each (p, q) pair represents one linear boundary constraint.
         t0, t1 = 0.0, 1.0
         for p, q in ((-dx, ax - xmin), (dx, xmax - ax), (-dy, ay - ymin), (dy, ymax - ay)):
             if p == 0:
+                # Parallel to this boundary: q < 0 means the whole segment is outside.
                 if q < 0:
                     return None
                 continue
             r = q / p
             if p < 0:
+                # This boundary raises the earliest possible point inside the area.
                 t0 = max(t0, r)
             else:
+                # This boundary lowers the latest possible point inside the area.
                 t1 = min(t1, r)
             if t0 > t1:
+                # The clipped interval is empty: the segment misses the rectangle.
                 return None
         return t0, t1
 
@@ -198,18 +208,23 @@ class PlotRectanglesFromLines(QObject):
         height_overlap = template.height() * (1 - self.overlap)
 
         ax, ay = start
-        # bounding box of the section: xmin, ymin, xmax, ymax
+        # Keep the section's bounding box as [xmin, ymin, xmax, ymax]. It starts
+        # as a point and grows as vertices (or a cut point) are added.
         bbox = [ax, ay, ax, ay]
         length = 0.0
 
         for index in range(segment_index, len(line) - 1):
             bx, by = line[index + 1].x(), line[index + 1].y()
             segment_length = math.hypot(bx - ax, by - ay)
+            # Find the furthest fraction of this segment that keeps both bbox
+            # dimensions within the template's usable width and height.
             t = min(1.0,
                     self.__max_step(ax, bx - ax, bbox[0], bbox[2], width_overlap),
                     self.__max_step(ay, by - ay, bbox[1], bbox[3], height_overlap))
 
             if t < 1.0:
+                # Cut inside this segment. Interpolation gives the exact endpoint;
+                # t also gives the same fraction of this segment's length.
                 cx, cy = ax + t * (bx - ax), ay + t * (by - ay)
                 self.__extend(bbox, cx, cy)
                 return _Section(bbox, length + t * segment_length, index, (cx, cy), False)
@@ -226,9 +241,12 @@ class PlotRectanglesFromLines(QObject):
             keeps the given size in this axis.
         """
         if delta > 0:
+            # Moving upward/rightward: the new coordinate may reach bbox_min + size.
             return max(0.0, (bbox_min + size - start) / delta)
         if delta < 0:
+            # Moving downward/leftward: it may reach bbox_max - size.
             return max(0.0, (bbox_max - size - start) / delta)
+        # No movement on this axis imposes no restriction on the step fraction.
         return math.inf
 
     @staticmethod
@@ -242,6 +260,7 @@ class PlotRectanglesFromLines(QObject):
     def __add_rectangle(self, line_index: int, template_index: int, bbox: List[float]):
         """Create a page rectangle and record its source line and template indices."""
         template = self.templates[template_index]
+        # Center the full template around the section's bounding box.
         center_x = (bbox[0] + bbox[2]) / 2
         center_y = (bbox[1] + bbox[3]) / 2
         half_width = template.width() / 2
@@ -251,6 +270,8 @@ class PlotRectanglesFromLines(QObject):
         self.__rectangle_line_indices.append(line_index)
         self.__rectangle_template_indices.append(template_index)
 
+        # Only the inner area is considered already covered by this page; keeping
+        # a margin leaves room for overlap with the next page around a cut point.
         inner_half_width = half_width * (1 - self.overlap)
         inner_half_height = half_height * (1 - self.overlap)
         self.__covered_areas.append((center_x - inner_half_width, center_y - inner_half_height,
