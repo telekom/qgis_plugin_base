@@ -28,6 +28,10 @@ UPDATE_HINT_COMPILED = """
 </ol>
 """
 
+DEFAULT_CHROME_PATH = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+DEFAULT_MSEDGE_PATH = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+DEFAULT_FIREFOX_PATH = r"C:\Program Files\Mozilla Firefox\firefox.exe"
+
 
 # geometry handling
 N_NONE = 0 # no neighbor
@@ -82,19 +86,28 @@ class VersionError:
 
 # pyqt
 STYLE_SHEET_ERROR = "font-weight: bold; color: rgb(255, 0, 0);"
-STYLE_SHEET_WARNING = "font-weight: bold; color: rgb(255, 150, 0);"
+STYLE_SHEET_WARNING = "font-weight: bold; color: rgb(162, 89, 0);"
 STYLE_SHEET_SUCCESS = "font-weight: bold; color: rgb(0, 125, 0);"
 STYLE_SHEET_NEUTRAL = "font-weight: bold; color: rgb(0, 0, 0);"
 
-STYLE_SHEET_EDIT_ERROR = "QLineEdit { background: rgb(255, 0, 0, 60);}"
-STYLE_SHEET_EDIT_WARNING = "QLineEdit { background: rgb(255, 150, 0, 60);}"
-STYLE_SHEET_EDIT_NEUTRAL = ""
+STYLE_SHEET_LINE_EDIT_ERROR = "QLineEdit { background: rgb(255, 0, 0, 60);}"
+STYLE_SHEET_LINE_EDIT_WARNING = "QLineEdit { background: rgb(162, 89, 0, 60);}"
+STYLE_SHEET_LINE_EDIT_NEUTRAL = ""
+
+# deprecated
+STYLE_SHEET_EDIT_ERROR = STYLE_SHEET_LINE_EDIT_ERROR
+STYLE_SHEET_EDIT_WARNING = STYLE_SHEET_LINE_EDIT_WARNING
+STYLE_SHEET_EDIT_NEUTRAL = STYLE_SHEET_LINE_EDIT_NEUTRAL
+
+STYLE_SHEET_TEXT_EDIT_ERROR = "QTextEdit { background: rgb(255, 0, 0, 60);}"
+STYLE_SHEET_TEXT_EDIT_WARNING = "QTextEdit { background: rgb(162, 89, 0, 60);}"
+STYLE_SHEET_TEXT_EDIT_NEUTRAL = ""
 
 STYLE_SHEET_SPIN_ERROR = "QSpinBox { background: rgb(255, 0, 0, 60);}"
 STYLE_SHEET_SPIN_NEUTRAL = ""
 
 STYLE_SHEET_COMBO_ERROR = "QComboBox { background: rgb(255, 0, 0, 60);}"
-STYLE_SHEET_COMBO_WARNING = "QComboBox { background: rgb(255, 150, 60);}"
+STYLE_SHEET_COMBO_WARNING = "QComboBox { background: rgb(162, 89, 60);}"
 STYLE_SHEET_COMBO_NEUTRAL = ""
 
 # accessibility
