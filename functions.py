@@ -214,15 +214,12 @@ def get_python_site_version_folder_name() -> str:
 def get_pyd_file_name_suffix() -> str:
     """ Returns the file name suffix for compiled PYD files.
 
-        Python 3.9: ".cp39-win_amd64.pyd"
         Python 3.12: ".cp312-win_amd64.pyd"
     """
 
     # get expected new file names
     python_version = get_python_site_version_folder_name()
-    if python_version == "Python39":
-        return '.cp39-win_amd64.pyd'
-    elif python_version == "Python312":
+    if python_version == "Python312":
         return '.cp312-win_amd64.pyd'
     else:
         raise SystemError(f"{python_version=} is not supported")

@@ -461,6 +461,27 @@ class PathFinderV2(QObject):
         if not (poly_line := self.get_poly_line(start_point, end_point, methods)):
             return []
 
+        return self.get_fid_route_from_line(start_point, end_point, poly_line, origin_layer, mode=mode)
+
+    def get_fid_route_from_line(
+            self,
+            start_point: QgsPointXY, end_point: QgsPointXY,
+            poly_line: list[QgsPointXY],
+            origin_layer: Optional[QgsVectorLayer] = None,
+            *,
+            mode: PathFinderFidRouteModes = PathFinderFidRouteModes.STRICT) -> List[int]:
+        """ Returns a sorted feature id list based on the give poly line with the start and end point.
+            The start_point and the end_point must be equal to the first
+            or last vertex in the first or last poly line from the polyline.
+
+            :param start_point: Start point for the route.
+            :param end_point: Destination point for the route.
+            :param poly_line: Polyline from start_point to end_point.
+            :param origin_layer: Optional layer to get the feature ids from. Defaults to the network_layer.
+                                 The CRS must be equal to the network layer.
+            :param mode: Mode for coordinates comparison
+        """
+
         # layer to use
         layer = origin_layer or self.__network_layer
         # get the spatial index to use

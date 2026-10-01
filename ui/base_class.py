@@ -12,7 +12,7 @@ import sys
 import time
 import contextlib
 
-from re import fullmatch, sub as re_sub, escape, search
+from re import fullmatch, search
 
 from pathlib import Path
 from pkg_resources import packaging
@@ -1704,20 +1704,9 @@ class UiModuleBase(ModuleBase):
             :param python_file: path to python file -> __file__
             :return:
         """
-        base = os.path.basename(python_file)
-        folder = os.path.dirname(python_file)
-
-        if not base.endswith(FILE_ENDINGS_PY_TO_UI):
-            raise ValueError(f"file name '{base}' must end with one value of '{FILE_ENDINGS_PY_TO_UI}'")
-
-        # replace file ending with ".ui"
-        ui_file = re_sub(FILE_ENDINGS_RE_COMPILED, ".ui", base)
-
-        ui_file_path = os.path.join(folder, ui_file)
-        if not Path(ui_file_path).is_file():
-            raise FileNotFoundError(f"no ui file found '{ui_file_path}'")
-
-        return ui_file_path
+        base = Path(python_file).stem
+        folder = Path(python_file).parent
+        return (folder / f"{base}.ui").as_posix()
 
     @classmethod
     def get_uic_classes(cls, python_or_ui_file: str) -> Tuple[Any, Type[QWidget]]:
