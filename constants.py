@@ -10,7 +10,7 @@ from typing import Optional
 from xml.sax.saxutils import escape
 
 
-FILE_ENDINGS_PY_TO_UI = (".py", ".cp39-win_amd64.pyd", ".cp312-win_amd64.pyd")
+FILE_ENDINGS_PY_TO_UI = (".py", ".cp312-win_amd64.pyd")
 FILE_ENDINGS_RE_PATTERN = "|".join(map(escape, FILE_ENDINGS_PY_TO_UI))
 FILE_ENDINGS_RE_COMPILED = re.compile(FILE_ENDINGS_RE_PATTERN)
 
