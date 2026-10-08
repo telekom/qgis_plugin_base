@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>TranslationHelper</class>
- <widget class="QMainWindow" name="TranslationHelper">
+ <class>MainWindowTranslationHelper</class>
+ <widget class="QMainWindow" name="MainWindowTranslationHelper">
   <property name="geometry">
    <rect>
     <x>0</x>
