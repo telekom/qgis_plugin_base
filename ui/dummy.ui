@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>MainWindow</class>
- <widget class="QMainWindow" name="MainWindow">
+ <class>MainWindowDummy</class>
+ <widget class="QMainWindow" name="MainWindowDummy">
   <property name="windowModality">
    <enum>Qt::ApplicationModal</enum>
   </property>
@@ -12,9 +12,6 @@
     <width>482</width>
     <height>220</height>
    </rect>
-  </property>
-  <property name="windowTitle">
-   <string>Fehler/Probleme melden</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
