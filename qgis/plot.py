@@ -96,7 +96,7 @@ class PrintLayout(QObject):
             # add the translator to the current Qt application
             QCoreApplication.instance().installTranslator(self._translator)
 
-    def init(self):
+    def init(self, pages_to_plot=[]):
         """ Initializes the plot layout and emits the progessChanged signal. """
         if self.__init_called:
             raise RuntimeError("init already called")
@@ -198,7 +198,12 @@ class PrintLayout(QObject):
 
         # 3. pages
         max_normal_page_count = self.plot_layer.get_next_page_number() - 1
-        for plot_page in self.plot_layer:
+        for index, plot_page in enumerate(self.plot_layer):
+            page_number = index + 1
+
+            #only plot selected pages, if none selected plot all
+            if pages_to_plot and page_number not in pages_to_plot:
+                continue
 
             # progress
             self.__main_current += 1
