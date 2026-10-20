@@ -345,6 +345,7 @@ class PrintLayout(QObject):
                 # icon path exists
                 if hasattr(new_item, "setPicturePath"):
                     new_item.setPicturePath(icon_path)
+                    new_item.refreshPicture()
 
             # mappings
             map_old_new[item] = new_item
