@@ -71,19 +71,27 @@ class PrintLayout(QObject):
         self.layout.initializeDefaults()
         self.layout.pageCollection().clear()
 
-        # page iterations
-        max_normal_page_count = self.plot_layer.get_next_page_number() - 1
-        self.__main_count = max_normal_page_count
-        # extra page "Übersicht"
-        if self.plot_layer.create_overview_page:
-            self.__main_count += 1
-        # extra page "Legend"
-        if self.plot_layer.legend_on_extra_page:
-            self.__main_count += 1
+        self.__calculate_page_count()
 
         # max progress count and current progress step
         self.__main_count += 1
         self.__main_current = 0
+
+    def __calculate_page_count(self, pages_to_plot=[]):
+        """"Calculates amount of pages to plot"""
+        # page iterations
+        max_normal_page_count = self.plot_layer.get_next_page_number() - 1
+        self.__main_count = max_normal_page_count
+        if pages_to_plot:
+            self.__main_count = len(pages_to_plot)
+
+        # extra page "Übersicht"
+        if self.plot_layer.create_overview_page:
+            self.__main_count += 1
+
+        # extra page "Legend"
+        if self.plot_layer.legend_on_extra_page:
+            self.__main_count += 1
 
     def __load_translator(self):
 
@@ -96,7 +104,7 @@ class PrintLayout(QObject):
             # add the translator to the current Qt application
             QCoreApplication.instance().installTranslator(self._translator)
 
-    def init(self):
+    def init(self, pages_to_plot=[]):
         """ Initializes the plot layout and emits the progessChanged signal. """
         if self.__init_called:
             raise RuntimeError("init already called")
@@ -104,6 +112,8 @@ class PrintLayout(QObject):
 
         pages = {}
         all_map_items_for_extra_legend = []
+
+        self.__calculate_page_count(pages_to_plot)
 
         # 1. overview page
         if self.plot_layer.create_overview_page:
@@ -198,7 +208,12 @@ class PrintLayout(QObject):
 
         # 3. pages
         max_normal_page_count = self.plot_layer.get_next_page_number() - 1
-        for plot_page in self.plot_layer:
+        for index, plot_page in enumerate(self.plot_layer):
+            page_number = index + 1
+
+            #only plot selected pages, if none selected plot all
+            if pages_to_plot and page_number not in pages_to_plot:
+                continue
 
             # progress
             self.__main_current += 1
@@ -330,6 +345,7 @@ class PrintLayout(QObject):
                 # icon path exists
                 if hasattr(new_item, "setPicturePath"):
                     new_item.setPicturePath(icon_path)
+                    new_item.refreshPicture()
 
             # mappings
             map_old_new[item] = new_item
