@@ -44,6 +44,7 @@ class PlotLayout:
         :param item_list: all items in print layout
         :param dom_element: Element from the XML file (plots.xml)
     """
+
     def __init__(self, name: str, path: str, group: str,
                  layout: QgsPrintLayout, item_list: List[QgsLayoutItem],
                  dom_element: QDomElement,
@@ -128,7 +129,7 @@ class PlotLayout:
         return self.__parent
 
     def setup(self):
-        """ loads all items and make them accessible.
+        """ Loads all items and make them accessible.
             Do some checks to keep layout compatibility
         """
         for item in self.item_list:
