@@ -6,7 +6,7 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Optional, List, Set, Tuple
 
-from qgis.core import (QgsVectorLayer, QgsField, QgsSpatialIndex, QgsFeature,
+from qgis.core import (QgsVectorLayer, QgsField, QgsSpatialIndex, QgsFeature, QgsFeatureRequest,
                        QgsGeometry, QgsPointXY, QgsRectangle, NULL)
 from qgis.PyQt.QtCore import QVariant, QObject, pyqtSignal
 
@@ -106,16 +106,17 @@ class GapFinder(QObject):
         self.spatial_line_end = LineEndsToPointSpatialIndexV2([0, -1])
         self.spatial_line_end.init(layer)
 
-        if CheckTypes.OnSegmentSnapped in self.modes:
+        if CheckTypes.OnSegmentSnapped in self.modes or CheckTypes.SegmentTouch in self.modes:
             # create a spatial index with the cached geometries
             self.__spatial_index_snapped_segment: Optional[QgsSpatialIndex] = QgsSpatialIndex(
-                layer, flags=QgsSpatialIndex.FlagStoreFeatureGeometries)
+                layer.getFeatures(QgsFeatureRequest().setNoAttributes()),
+                flags=QgsSpatialIndex.FlagStoreFeatureGeometries)
         else:
             self.__spatial_index_snapped_segment: Optional[QgsSpatialIndex] = None
 
         self.layer = layer
         self.distance = distance
-        self._handled_point_fids = []
+        self._handled_point_fids = set()
         self._handled_point_fids_segment = set()
 
         # result layer with point features where maybe is a gap
@@ -201,7 +202,7 @@ class GapFinder(QObject):
 
         errors = set()
 
-        for geometry in map(self.layer.getGeometry, nearest_line_fids):
+        for geometry in map(self.__spatial_index_snapped_segment.geometry, nearest_line_fids):
             sqrt_distance, closest_point, after_vertex, _ = geometry.closestSegmentWithContext(point)
             if sqrt_distance < 0:
                 # noinspection PyProtectedMember
@@ -233,8 +234,7 @@ class GapFinder(QObject):
             :param point_fid: point fid from self.spatial_line_end
         """
         # FIXME Ändern auf, dass geprüft wird, dass ein Segment hier geteilt werden sollte.
-        spatial_segment = QgsSpatialIndex(self.layer)
-        neighbor = spatial_segment.intersects(QgsRectangle.fromCenterAndSize(
+        neighbor = self.__spatial_index_snapped_segment.intersects(QgsRectangle.fromCenterAndSize(
             point, self.distance * 2, self.distance * 2))
         source_fid = self.spatial_line_end.get_source_fid(point_fid)
         for nid in neighbor:
@@ -323,7 +323,7 @@ class GapFinder(QObject):
                 # break, invalid coordinate found
                 break
 
-        self._handled_point_fids.extend(neighbor)
+        self._handled_point_fids.update(neighbor)
         self.points |= errors
 
     def __check_overlapping_parts(self):
