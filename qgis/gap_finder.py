@@ -111,7 +111,7 @@ class GapFinder(QObject):
         self.spatial_line_end = LineEndsToPointSpatialIndexV2([0, -1])
         self.spatial_line_end.init(layer)
 
-        if CheckTypes.OnSegmentSnapped in self.modes or CheckTypes.SegmentTouch in self.modes:
+        if CheckTypes.OnSegmentSnapped in self.modes or CheckTypes.RequiresSegmentSplit in self.modes:
             # create a spatial index with the cached geometries
             self.__spatial_index_snapped_segment: Optional[QgsSpatialIndex] = QgsSpatialIndex(
                 layer.getFeatures(QgsFeatureRequest().setNoAttributes()),
