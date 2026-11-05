@@ -9,128 +9,130 @@ from pathlib import Path
 from re import compile, Pattern
 from typing import Dict, Union, Optional, List, Tuple
 
+# name suffixes may contain digits but must start with a letter (Btn_XY_3Z, not Btn_01); only Line may be numbered
 Rules: Dict[str, Dict[str, Pattern | None] | Dict[str, Pattern | Dict[str, Tuple[bool, Pattern]]]] = {
     "QCalendarWidget": {
         'names': compile(r"^Calendar$"),
         'options': None
     },
     "QComboBox": {
-        'names': compile(r"^(DrD|Combo)(_[A-Za-z_]+)?"),
+        'names': compile(r"^(DrD|Combo)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': {
             # key: xpath starting at combo box tree element
             # value: (necessary=True, pattern)
             './property[@name="sizeAdjustPolicy"]/enum': (True, compile(r"QComboBox::"
-                                                                        "(AdjustToMinimumContentsLengthWithIcon"
-                                                                        "|AdjustToMinimumContentsLength)"))
+                                                                        r"(AdjustToMinimumContentsLengthWithIcon"
+                                                                        r"|AdjustToMinimumContentsLength)"))
         }
     },
     "QCheckBox": {
-        'names': compile(r"^CheckBox(_[A-Za-z_]+)?$"),
+        'names': compile(r"^CheckBox(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QDateEdit": {
-        'names': compile(r"^(DateEdit|Date_Edit)(_[A-Za-z_]+)?$"),
+        'names': compile(r"^(DateEdit|Date_Edit)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QFrame": {
-        'names': compile(r"^(frame(_\d+)?|MainWidget|(Frame|Module)(_[A-Za-z_]+)?)$"),
+        'names': compile(r"^(frame(_\d+)?|MainWidget|(Frame|Module)(_[A-Za-z][A-Za-z0-9_]*)?)$"),
         'options': None
     },
     "QGroupBox": {
-        'names': compile(r"^(groupBox(_\d+)?|(Group|GroupBox)(_[A-Za-z_]+)?)$"),
+        'names': compile(r"^(groupBox(_\d+)?|(Group|GroupBox)(_[A-Za-z][A-Za-z0-9_]*)?)$"),
         'options': None
     },
     "QLabel": {
-        'names': compile(r"^(label(_\d+)?|(Lab|Label)(_[A-Za-z_]+)?).*$"),
+        'names': compile(r"^(Lab|Label)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QLineEdit": {
-        'names': compile(r"^(Edit|Line_Edit|LineEdit|Input)(_[A-Za-z_]+)?$"),
+        'names': compile(r"^(Edit|Line_Edit|LineEdit|Input)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QListView": {
-        'names': compile(r"^(List|ListView)(_[A-Za-z_]+)?$"),
+        'names': compile(r"^(List|ListView)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QListWidget": {
-        'names': compile(r"^(List|ListWidget)(_[A-Za-z_]+)?$"),
+        'names': compile(r"^(List|ListWidget)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QProgressBar": {
-        'names': compile(r"^(Progress)(_[A-Za-z_]+)?$"),
+        'names': compile(r"^(Progress)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QPushButton": {
-        'names': compile(r"^(But|Btn)(_[A-Za-z_]+)?$"),
+        'names': compile(r"^(But|Btn)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QRadioButton": {
-        'names': compile(r"^(Radio|RadioBtn|RadioBut)(_[A-Za-z_]+)?$"),
+        'names': compile(r"^(Radio|RadioBtn|RadioBut)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QScrollArea": {
-        'names': compile(r"^scrollArea|(ScrollArea|Scroll)(_[A-Za-z_]+)?$"),
+        'names': compile(r"^(ScrollArea|Scroll)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QSpinBox": {
-        'names': compile(r"^(Spin|SpinBox)(_[A-Za-z_]+)?$"),
+        'names': compile(r"^(Spin|SpinBox)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QTabWidget": {
-        'names': compile(r"^(tabWidget(_\d+)?|Tab|TabWidget)(_[A-Za-z_]+)?$"),
+        'names': compile(r"^(tabWidget(_\d+)?|Tab|TabWidget)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QTableView": {
-        'names': compile(r"^(Table|TableView)(_[A-Za-z_]+)?$"),
+        'names': compile(r"^(Table|TableView)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QTableWidget": {
-        'names': compile(r"^(Table|TableWidget)(_[A-Za-z_]+)?$"),
+        'names': compile(r"^(Table|TableWidget)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QTextEdit": {
-        'names': compile(r"^(TextEdit|Text_Edit)(_[A-Za-z_]+)?$"),
+        'names': compile(r"^(TextEdit|Text_Edit)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QPlainTextEdit": {
-        'names': compile(r"^(PlainEdit)(_[A-Za-z_]+)?$"),
+        'names': compile(r"^(PlainEdit)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QTimeEdit": {
-        'names': compile(r"^(TimeEdit)(_[A-Za-z_]+)?$"),
+        'names': compile(r"^(TimeEdit)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QToolButton": {
-        'names': compile(r"^(But|Btn)(_[A-Za-z_]+)?$"),
+        'names': compile(r"^(But|Btn)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QTreeView": {
-        'names': compile(r"^(Tree|TreeView)(_[A-Za-z_]+)?$"),
+        'names': compile(r"^(Tree|TreeView)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QTreeWidget": {
-        'names': compile(r"^(Tree|TreeWidget)(_[A-Za-z_]+)?$"),
+        'names': compile(r"^(Tree|TreeWidget)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QWidget": {
         # some of this object names are default values from Qt Designer
-        'names': compile(r"^(widget(_\d+)?|Form|dockWidgetContents|centralwidget|MainWidget|Widget(_[A-Za-z_]+)?)$"),
+        'names': compile(r"^(widget(_\d+)?|Form|dockWidgetContents|centralwidget|MainWidget"
+                         r"|Widget(_[A-Za-z][A-Za-z0-9_]*)?)$"),
         'options': None
     },
     "Line": {
         # simple line element
-        'names': compile("^(Line|LineSpacer|Line_Spacer)(_[A-Za-z_]+)?$"),
+        'names': compile(r"^(Line|LineSpacer|Line_Spacer)(_[A-Za-z0-9_]+)?$"),
         'options': None
     },
     "QGraphicsView": {
-        'names': compile("^(Graphics|GraphicsView)(_[A-Za-z_]+)?$"),
+        'names': compile(r"^(Graphics|GraphicsView)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
 
     # qgis classes
     "QgsFileWidget": {
         # some of this object names are default values from Qt Designer
-        'names': compile(r"^(FileEdit|File(_[A-Za-z_]+)?)$"),
+        'names': compile(r"^(FileEdit|File)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
 }
@@ -182,7 +184,7 @@ def validate_file(input_file: Union[Path, str], output_file: Optional[Union[Path
         class_ = widget.attrib['class']
         name = widget.attrib['name']
 
-        rule = Rules.get(class_, None)
+        rule = Rules.get(class_)
         if rule is None:
             # no rule defined
             continue
@@ -289,8 +291,8 @@ def run_from_terminal():
     parser.add_argument("-output", dest="output", type=str, required=False, default=None)
     args = parser.parse_args()
 
-    input_ = args.input if args.input else input("-input(needed)=")
-    output = args.output if args.output else input("-output(optional)=")
+    input_ = args.input or input("-input(needed)=")
+    output = args.output or input("-output(optional)=")
 
     path = Path(input_)
     if path.is_file():
@@ -301,7 +303,7 @@ def run_from_terminal():
         if Path(output).is_file():
             print(f"result file {output} created")
         else:
-            print(f"UI files ok.")
+            print("UI files ok.")
 
 
 if __name__ == "__main__":
