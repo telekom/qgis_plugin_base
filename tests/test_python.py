@@ -40,6 +40,3 @@ def test_sys_path():
     # the user's site path must have a lower index than the Python's site path
     #   -> import order, prefer from user's site path
     assert index_user_site < index_py_site
-
-
-

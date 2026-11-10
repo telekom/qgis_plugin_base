@@ -4,6 +4,8 @@
 
 from typing import Dict, List, Union, Tuple, Iterator, Optional
 
+
+from qgis.PyQt import sip
 from qgis.PyQt.QtWidgets import (QFrame, QWidget,
                                  QTabWidget, QGridLayout)
 from qgis.PyQt.QtCore import Qt, pyqtSignal
@@ -204,21 +206,25 @@ class TabModuleBase(UiModuleBase, QTabWidget):
 
         widget = self.widget(tab_index)
         children: List[UiModuleBase] = widget.findChildren(QWidget)
-        for child in children:
 
-            if isinstance(child, UiModuleBase):
-                child.unload(True)
-                continue
+        module_widgets = [
+            (child, child.objectName()) for child in children
+            if isinstance(child, UiModuleBase) or hasattr(child, "_ui_module_base")
+        ]
+        for child, _ in module_widgets:
+            module = child if isinstance(child, UiModuleBase) else child._ui_module_base
+            if not module.unloaded:
 
-            if hasattr(child, "_ui_module_base"):
-                module = child._ui_module_base
                 module.unload(True)
-                if hasattr(self, child.objectName()):
-                    delattr(self, child.objectName())
-                child.setObjectName("")
 
         if isinstance(widget, UiModuleBase):
             widget.unload(True)
+
+        for child, name in module_widgets:
+            if hasattr(self, name):
+                delattr(self, name)
+            if not sip.isdeleted(child):
+                child.setObjectName("")
 
         # unload used object names to make them available for later usage
         for name in self.tab_object_names[tab_name]:
