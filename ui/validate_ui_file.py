@@ -16,7 +16,7 @@ Rules: Dict[str, Dict[str, Pattern | None] | Dict[str, Pattern | Dict[str, Tuple
         'options': None
     },
     "QComboBox": {
-        'names': compile(r"^(DrD|Combo)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'names': compile(r"^(DrD)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': {
             # key: xpath starting at combo box tree element
             # value: (necessary=True, pattern)
@@ -30,7 +30,7 @@ Rules: Dict[str, Dict[str, Pattern | None] | Dict[str, Pattern | Dict[str, Tuple
         'options': None
     },
     "QDateEdit": {
-        'names': compile(r"^(DateEdit|Date_Edit)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'names': compile(r"^(DateEdit)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QFrame": {
@@ -42,19 +42,19 @@ Rules: Dict[str, Dict[str, Pattern | None] | Dict[str, Pattern | Dict[str, Tuple
         'options': None
     },
     "QLabel": {
-        'names': compile(r"^(Lab|Label)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'names': compile(r"^(Label)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QLineEdit": {
-        'names': compile(r"^(Edit|Line_Edit|LineEdit|Input)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'names': compile(r"^(LineEdit)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QListView": {
-        'names': compile(r"^(List|ListView)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'names': compile(r"^(ListView)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QListWidget": {
-        'names': compile(r"^(List|ListWidget)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'names': compile(r"^(ListWidget)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QProgressBar": {
@@ -62,35 +62,35 @@ Rules: Dict[str, Dict[str, Pattern | None] | Dict[str, Pattern | Dict[str, Tuple
         'options': None
     },
     "QPushButton": {
-        'names': compile(r"^(But|Btn)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'names': compile(r"^(Btn)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QRadioButton": {
-        'names': compile(r"^(Radio|RadioBtn|RadioBut)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'names': compile(r"^(RadioBtn)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QScrollArea": {
-        'names': compile(r"^(ScrollArea|Scroll)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'names': compile(r"^(ScrollArea)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QSpinBox": {
-        'names': compile(r"^(Spin|SpinBox)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'names': compile(r"^(SpinBox)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QTabWidget": {
-        'names': compile(r"^(tabWidget(_\d+)?|Tab|TabWidget)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'names': compile(r"^(tabWidget(_\d+)?|TabWidget)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QTableView": {
-        'names': compile(r"^(Table|TableView)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'names': compile(r"^(TableView)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QTableWidget": {
-        'names': compile(r"^(Table|TableWidget)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'names': compile(r"^(TableWidget)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QTextEdit": {
-        'names': compile(r"^(TextEdit|Text_Edit)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'names': compile(r"^(TextEdit)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QPlainTextEdit": {
@@ -102,15 +102,15 @@ Rules: Dict[str, Dict[str, Pattern | None] | Dict[str, Pattern | Dict[str, Tuple
         'options': None
     },
     "QToolButton": {
-        'names': compile(r"^(But|Btn)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'names': compile(r"^(Btn)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QTreeView": {
-        'names': compile(r"^(Tree|TreeView)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'names': compile(r"^(TreeView)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QTreeWidget": {
-        'names': compile(r"^(Tree|TreeWidget)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'names': compile(r"^(TreeWidget)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
     "QWidget": {
@@ -121,18 +121,26 @@ Rules: Dict[str, Dict[str, Pattern | None] | Dict[str, Pattern | Dict[str, Tuple
     },
     "Line": {
         # simple line element
-        'names': compile(r"^(Line|LineSpacer|Line_Spacer)(_[A-Za-z0-9_]+)?$"),
+        'names': compile(r"^(Line|LineSpacer)(_[A-Za-z0-9_]+)?$"),
         'options': None
     },
     "QGraphicsView": {
-        'names': compile(r"^(Graphics|GraphicsView)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'names': compile(r"^(GraphicsView)(_[A-Za-z][A-Za-z0-9_]*)?$"),
         'options': None
     },
 
     # qgis classes
     "QgsFileWidget": {
         # some of this object names are default values from Qt Designer
-        'names': compile(r"^(FileEdit|File)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'names': compile(r"^(FileEdit)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'options': None
+    },
+    "QgsMapLayerComboBox": {
+        'names': compile(r"^(LayerDrD)(_[A-Za-z][A-Za-z0-9_]*)?$"),
+        'options': None
+    },
+    "QgsCollapsibleGroupBox": {
+        'names': compile(r"^(groupBox(_\d+)?|(Group|GroupBox|CollapsibleGroupBox)(_[A-Za-z][A-Za-z0-9_]*)?)$"),
         'options': None
     },
 }

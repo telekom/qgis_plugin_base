@@ -90,7 +90,7 @@
           </widget>
          </item>
          <item row="4" column="1">
-          <widget class="QPushButton" name="But_Cancel">
+          <widget class="QPushButton" name="Btn_Cancel">
            <property name="font">
             <font>
              <weight>50</weight>

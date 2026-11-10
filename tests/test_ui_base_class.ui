@@ -15,21 +15,21 @@
   </property>
   <layout class="QHBoxLayout" name="horizontalLayout">
    <item>
-    <widget class="QPushButton" name="But_A">
+    <widget class="QPushButton" name="Btn_A">
      <property name="text">
       <string>PushButton</string>
      </property>
     </widget>
    </item>
    <item>
-    <widget class="QPushButton" name="But_B">
+    <widget class="QPushButton" name="Btn_B">
      <property name="text">
       <string>PushButton</string>
      </property>
     </widget>
    </item>
    <item>
-    <widget class="QPushButton" name="But_C">
+    <widget class="QPushButton" name="Btn_C">
      <property name="text">
       <string>PushButton</string>
      </property>
@@ -38,9 +38,9 @@
   </layout>
  </widget>
  <tabstops>
-  <tabstop>But_A</tabstop>
-  <tabstop>But_B</tabstop>
-  <tabstop>But_C</tabstop>
+  <tabstop>Btn_A</tabstop>
+  <tabstop>Btn_B</tabstop>
+  <tabstop>Btn_C</tabstop>
  </tabstops>
  <resources/>
  <connections/>

@@ -18,4 +18,4 @@ class ModuleDummy(UiModuleBase, QMainWindow, FORM_CLASS):
         self.setupUi(self)
 
     def set_text(self, text: str):
-        self.Lab_Status.setText(text)
+        self.Label_Status.setText(text)
