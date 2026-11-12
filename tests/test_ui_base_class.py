@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 # SPDX-FileCopyrightText: 2025 Deutsche Telekom Technik GmbH <f.vonstudsinske@telekom.de>
 # SPDX-License-Identifier: GPL-3.0-only
+import pytest
 
 from pathlib import Path
 
-import pytest
-
 from qgis.PyQt import sip
+from qgis.PyQt.QtCore import QObject
 from qgis.PyQt.QtWidgets import QTabWidget, QWidget
 
 from .fixtures import plugin_qgis_new_project
+
 from ..ui.base_class import UiModuleBase
 from ..ui.base_tab_widget import TabModuleBase
 
@@ -18,7 +19,25 @@ def test_get_tab_stops_from_ui_file():
 
     file = Path(__file__).parent / "test_ui_base_class.ui"
     tab_stops = UiModuleBase.get_tab_stops_from_ui_file(file.as_posix())
-    assert tab_stops == ["But_A", "But_B", "But_C"]
+    assert tab_stops == ["Btn_A", "Btn_B", "Btn_C"]
+
+
+def test_ui_module_lifecycle_signals_have_distinct_names():
+    class SignalProbe(UiModuleBase, QObject):
+        pass
+
+    meta_object = SignalProbe.staticMetaObject
+    signal_names = {
+        bytes(meta_object.method(index).name()).decode()
+        for index in range(meta_object.methodOffset(), meta_object.methodCount())
+    }
+
+    assert "uiModuleAdding" in signal_names
+    assert "uiModuleAdded" in signal_names
+
+
+def test_legacy_subcomponent_module_api_is_removed():
+    assert not hasattr(UiModuleBase, "add_subcomponent_module")
 
 
 @pytest.fixture()

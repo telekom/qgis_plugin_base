@@ -37,7 +37,7 @@ class DoubleProgressGroup(UiModuleBase, QDialog, FORM_CLASS):
         # gui connections
         self.Progress_All.valueChanged.connect(self._value_changed_main)
         self.Progress_Single.valueChanged.connect(self._value_changed_sub)
-        self.But_Cancel.clicked.connect(self.cancel)
+        self.Btn_Cancel.clicked.connect(self.cancel)
 
         # on setup call, this list will contain the widgets to hide
         self.hidden_widgets = []
@@ -229,9 +229,9 @@ class DoubleProgressGroup(UiModuleBase, QDialog, FORM_CLASS):
         self.get_mainbar().setFormat(bar_format)
 
         if can_cancel:
-            self.But_Cancel.show()
+            self.Btn_Cancel.show()
         else:
-            self.But_Cancel.hide()
+            self.Btn_Cancel.hide()
 
         for widget in hide_widgets:
             widget.hide()

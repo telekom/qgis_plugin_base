@@ -12,7 +12,7 @@ import sys
 import time
 import contextlib
 
-from re import fullmatch, search
+from re import fullmatch, escape, search
 
 from pathlib import Path
 from pkg_resources import packaging
@@ -91,7 +91,7 @@ class ModuleBase(Logging):
     moduleAdded = pyqtSignal(object, name="moduleAdded")
 
     # Module Objects available, only available for UiModuleBase objects
-    uiModuleAdding = pyqtSignal(object, name="uiModuleAdded")
+    uiModuleAdding = pyqtSignal(object, name="uiModuleAdding")
     uiModuleAdded = pyqtSignal(object, name="uiModuleAdded")
 
     def __init__(self, **kwargs: dict):
@@ -1176,164 +1176,6 @@ class UiModuleBase(ModuleBase):
                 if (widget_type in (QListWidget, QTreeWidget, QListView, QTreeView, QTableView, QTextBrowser, QTextEdit)
                         and enhanced_borders):
                     widget.setFrameShape(QListWidget.WinPanel)
-
-    def add_subcomponent_module(self,
-                                keyword: str,
-                                plugin_widget_left: Union[QWidget, None],
-                                plugin_widget_right: Union[QWidget, None],
-                                module_class: Type[UIMB],
-                                use_directly: bool = False,
-                                parent: Optional[QWidget] = None,
-                                *args: list,
-                                **kwargs
-                                ) -> UIMB:
-        """ Adds a new subcomponent module to this and returns it. It splits the submodule into two sections and adds
-            them to the left or right panel of the form layout
-
-            :param keyword: keyword for module dictionary (must be unique)
-            :param plugin_widget_left: Left Widget to replace. Needs a parent with a set QLayout. QGridLayout recommended.
-            :param plugin_widget_right: Right Widget to replace. Needs a parent with a set QLayout. QGridLayout recommended.
-            :param module_class: module class to load
-            :param use_directly: use given module class directly as new widget?
-            :param parent: parent widget for WindowModality, defaults to None
-        """
-        if UiModuleBase not in inspect.getmro(module_class):
-            raise ValueError(f"'{module_class.__class__.__name__}' must inherit UiBaseModule")
-
-        module = self.add_module(keyword, module_class, parent, *args, **kwargs)
-        self.uiModuleAdding.emit(module)
-
-        if use_directly:
-            module.make_valid()
-
-        if plugin_widget_left is not None and plugin_widget_right is not None:
-            # where to place the new widget into
-            parent_widget = plugin_widget_left.parent()
-            plugin_layout = parent_widget.layout()
-
-            object_name_left = plugin_widget_left.objectName()
-            object_name_right = plugin_widget_right.objectName()
-            self.is_object_name_valid(object_name_left)
-            self.is_object_name_valid(object_name_right)
-
-            if plugin_layout is not None:
-                # load module into existing module
-                # more information in `UiModuleBase`
-                # gui references are set, load it
-
-                widget: QWidget = module.MainWidget
-
-                if widget is None:
-                    raise AttributeError(f"missing MainWidget object name on {self.__class__.__name__}/in ui file")
-                widget._ui_module_base = module
-
-                # Counters for obtaining the correct Widgets
-                # Counter for SubcomponentLabel, ContentContainer pairs
-                count = 1
-                # Counter for StaticButton widgets
-                button_count = 1
-                # Counter for WideLabel widgets
-                wide_label_count = 1
-                # Counter for WideWidget widgets
-                wide_widget_count = 1
-
-                # Lists containing found widgets
-                label_references: List[QLabel] = []
-                content_references: List[QWidget] = []
-                button_references: List[QPushButton] = []
-                wide_label_references: List[QLabel] = []
-                wide_widget_references: List[QWidget] = []  # labels, widgets, lists, ...
-
-                # Loop until no more elements are found
-                while True:
-                    # Widget's object names must follow the patterns below, only changing the count respectively
-                    # e.g. First WideLabel will be named WideLabel_1, second WideLabel_2 etc.
-                    label_reference = f"SubcomponentLabel_{count}"
-                    content_reference = f"ContentContainer_{count}"
-                    button_reference = f"StaticButton_{button_count}"
-                    wide_label_reference = f"WideLabel_{wide_label_count}"
-                    wide_widget_reference = f"WideWidget_{wide_widget_count}"
-
-                    # get only specific widgets from expected QWidget-Typ (label, etc.)
-                    label: QLabel = widget.findChild(QLabel, label_reference)
-                    content: QWidget = widget.findChild(QWidget, content_reference)
-                    button: QPushButton = widget.findChild(QPushButton, button_reference)
-                    tool_button: QToolButton = widget.findChild(QToolButton, button_reference)
-                    wide_label: QLabel = widget.findChild(QLabel, wide_label_reference)
-
-                    # get a widget to load, no specific QWidget type, any type allowed
-                    # QObject, allow any object inherit from QObject
-                    wide_widget: QWidget = widget.findChild(QObject, wide_widget_reference)
-
-                    # SubcomponentLabel, ContentContainer pair found
-                    if label and content:
-                        label_references.append(label)
-                        content_references.append(content)
-                        count += 1
-                    # StaticButton widget found
-                    elif button:
-                        button_references.append(button)
-                        button_count += 1
-                    elif tool_button:
-                        button_references.append(tool_button)
-                        button_count += 1
-                    # WideLabel widget found
-                    elif wide_label:
-                        wide_label_references.append(wide_label)
-                        wide_label_count += 1
-                    # WideWidget widget found
-                    elif wide_widget:
-                        wide_widget_references.append(wide_widget)
-                        wide_widget_count += 1
-                    else:
-                        break
-
-                # removes all children from widget to replace
-                for child in plugin_widget_left.findChildren(QWidget):
-                    child.setParent(None)
-                    child.deleteLater()
-
-                for child in plugin_widget_right.findChildren(QWidget):
-                    child.setParent(None)
-                    child.deleteLater()
-
-                # Append WideLabel widgets to a new row in the GridLayout, span them across both columns
-                for k in range(len(wide_label_references)):
-                    row = plugin_layout.rowCount()
-
-                    plugin_layout.addWidget(wide_label_references[k], row + k, 0, 1, 2)
-
-                # Append SubcomponentLabel, ContentContainer pairs to a new row in the GridLayout, using column 1 and 2
-                for i in range(len(label_references)):
-                    row = plugin_layout.rowCount()
-
-                    plugin_layout.addWidget(label_references[i], row, 0)
-                    plugin_layout.addWidget(content_references[i], row, 1)
-
-                # Append StaticButton widgets to a new row in the GridLayout, span them across both columns
-                for j in range(len(button_references)):
-                    row = plugin_layout.rowCount()
-
-                    plugin_layout.addWidget(button_references[j], row + j, 0, 1, 2)
-
-                # Append WideWidgets widgets to a new row in the GridLayout, span them across both columns
-                # QWidget, QLabel, QList, ... undefined here, but crossing both columns
-                for c in range(len(wide_widget_references)):
-                    row = plugin_layout.rowCount()
-
-                    plugin_layout.addWidget(wide_widget_references[c], row + c, 0, 1, 2)
-
-                widget.show()
-
-        self.uiModuleAdded.emit(module)
-
-        try:
-            plugin = self.get_plugin()
-            plugin.uiSubmoduleAdded.emit(self, module)
-        except (StopIteration, ModuleNotFoundError):
-            ...
-
-        return module
 
     @staticmethod
     def _raise_for_invalid_ui_module_class(module_class: Type[UIMB]):

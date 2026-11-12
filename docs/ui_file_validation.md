@@ -8,7 +8,7 @@ SPDX-License-Identifier: GPL-3.0-only
 
 A basic quality gate exists, to check the Qt object names against a config.
 
-E.g. a `QPushButton` should not named like `button1` but should named like `But_Close`.
+E.g. a `QPushButton` should not named like `button1` but should named like `Btn_Close`.
 
 To ignore a name check for a QWidget within the UI file, the attribute `` can be set with the QtDesigner.
 

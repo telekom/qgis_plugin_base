@@ -81,12 +81,12 @@ class ConfirmationDialog(QDialog, FORM_CLASS):
         """ load all initial connections needed for dialog
         """
         # button connections
-        self.But_Abort.clicked.connect(lambda *_: self.__abort_method())
-        self.But_Confirmation.clicked.connect(lambda *_: self.__confirmation_method())
+        self.Btn_Abort.clicked.connect(lambda *_: self.__abort_method())
+        self.Btn_Confirmation.clicked.connect(lambda *_: self.__confirmation_method())
         # connection for checkbox checkstate switch
         self.CheckBox_Confirm.toggled.connect(lambda *_: self.__set_confirmable())
         # load captcha connection
-        self.Edit_Captcha.textChanged.connect(lambda *_: self.__set_confirmable())
+        self.LineEdit_Captcha.textChanged.connect(lambda *_: self.__set_confirmable())
 
     def __confirmation_given(self):
         """ initial confirmation method for button, can be exchanged
@@ -102,21 +102,21 @@ class ConfirmationDialog(QDialog, FORM_CLASS):
         """ methods to enable / disable confirming button
         """
         # resets style sheet form captcha edit
-        self.Edit_Captcha.setStyleSheet("")
+        self.LineEdit_Captcha.setStyleSheet("")
 
         checked = not bool(self.CheckBox_Confirm.checkState())
 
         # check, if the captcha should be solved or not
         if self.__captcha_hint and self.__captcha_solution:
             # case sensitive compare captcha
-            captcha_ok = self.Edit_Captcha.text() == self.__captcha_solution
+            captcha_ok = self.LineEdit_Captcha.text() == self.__captcha_solution
             if not captcha_ok:
-                self.Edit_Captcha.setStyleSheet(STYLE_SHEET_EDIT_ERROR)
+                self.LineEdit_Captcha.setStyleSheet(STYLE_SHEET_EDIT_ERROR)
         else:
             # no need to solve the captcha
             captcha_ok = True
 
-        self.But_Confirmation.setDisabled(checked or not captcha_ok)
+        self.Btn_Confirmation.setDisabled(checked or not captcha_ok)
 
     def set_confirmation_method(self, confirmation_method: Callable):
         """ sets method called when confirmation button is clicked, if exchange is needed
@@ -137,7 +137,7 @@ class ConfirmationDialog(QDialog, FORM_CLASS):
 
             :param text: str button text
         """
-        self.But_Confirmation.setText(text)
+        self.Btn_Confirmation.setText(text)
         self.adjustSize()
 
     def set_abort_but_text(self, text: str = "Abbrechen"):
@@ -145,7 +145,7 @@ class ConfirmationDialog(QDialog, FORM_CLASS):
 
             :param text: str button text
         """
-        self.But_Abort.setText(text)
+        self.Btn_Abort.setText(text)
         self.adjustSize()
 
     def set_message_text(self, message: str = ""):
@@ -168,7 +168,7 @@ class ConfirmationDialog(QDialog, FORM_CLASS):
 
             :param visible: bool if abort button should be visible
         """
-        self.But_Abort.setVisible(visible)
+        self.Btn_Abort.setVisible(visible)
 
     def is_confirmed(self) -> bool:
         """ returns bool if corfimation button was clicked at least once

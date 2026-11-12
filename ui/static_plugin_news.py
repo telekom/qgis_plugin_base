@@ -26,13 +26,13 @@ class StaticPluginNews(UiModuleBase, QMainWindow, FORM_CLASS):
         self.setupUi(self)
         self.fill_news(self.get_plugin().news_url, self.TextEdit_View_News)
         self.fill_news(self.get_plugin().changelog_url, self.TextEdit_View_Changelogs)
-        self.But_Close.clicked.connect(self.news_close_button)
+        self.Btn_Close.clicked.connect(self.news_close_button)
 
         if self.get_plugin().homepage_url:
-            self.But_Yam.clicked.connect(self.news_yam_button)
+            self.Btn_Yam.clicked.connect(self.news_yam_button)
         else:
             # noe hompage/yam page set, hide the button
-            self.But_Yam.hide()
+            self.Btn_Yam.hide()
 
         # set current index in tab
         # 0: show news

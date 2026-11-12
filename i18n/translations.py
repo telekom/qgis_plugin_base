@@ -33,18 +33,18 @@ class TranslationHelper(QMainWindow, FormClass):
         self.centralWidget().layout().setAlignment(Qt.AlignTop)
 
         # setup Qt connections
-        self.But_Open.clicked.connect(self.open_ts_file)
-        self.But_Add.clicked.connect(self.add_element)
-        self.But_Remove.clicked.connect(self.remove_element)
-        self.But_Save.clicked.connect(self.save_file)
+        self.Btn_Open.clicked.connect(self.open_ts_file)
+        self.Btn_Add.clicked.connect(self.add_element)
+        self.Btn_Remove.clicked.connect(self.remove_element)
+        self.Btn_Save.clicked.connect(self.save_file)
         self.DrD_Context.currentIndexChanged.connect(self.__load_elements_to_tree_view)
 
         self.disable()
 
     def disable(self):
         self.DrD_Context.clear()
-        self.Tree_Xml_View.clear()
-        self.Tree_Xml_View.setEnabled(False)
+        self.TreeWidget_Xml_View.clear()
+        self.TreeWidget_Xml_View.setEnabled(False)
         self.Frame_View.setEnabled(False)
         self.tree = None
         self.Frame_Save.setEnabled(False)
@@ -53,8 +53,8 @@ class TranslationHelper(QMainWindow, FormClass):
         self.Group_Context.setEnabled(False)
 
     def enable(self):
-        self.Tree_Xml_View.clear()
-        self.Tree_Xml_View.setEnabled(True)
+        self.TreeWidget_Xml_View.clear()
+        self.TreeWidget_Xml_View.setEnabled(True)
         self.Frame_Save.setEnabled(True)
         self.Frame_View.setEnabled(True)
         self.Frame_Open.setEnabled(False)
@@ -113,7 +113,7 @@ class TranslationHelper(QMainWindow, FormClass):
         self.add_element_to_tree(new_element)
 
     def remove_element(self):
-        items = self.Tree_Xml_View.selectedItems()
+        items = self.TreeWidget_Xml_View.selectedItems()
         if not items:
             return
 
@@ -127,7 +127,7 @@ class TranslationHelper(QMainWindow, FormClass):
         parent = element.getparent()
         parent.remove(element)
 
-        self.Tree_Xml_View.invisibleRootItem().removeChild(item)
+        self.TreeWidget_Xml_View.invisibleRootItem().removeChild(item)
 
     def save_file(self):
         reply = QMessageBox.question(
@@ -138,7 +138,7 @@ class TranslationHelper(QMainWindow, FormClass):
         if reply != QMessageBox.Yes:
             return
 
-        iterator = QTreeWidgetItemIterator(self.Tree_Xml_View)
+        iterator = QTreeWidgetItemIterator(self.TreeWidget_Xml_View)
         while iterator.value():
 
             item = iterator.value()
@@ -174,7 +174,7 @@ class TranslationHelper(QMainWindow, FormClass):
 
     def __load_elements_to_tree_view(self):
         context = self.DrD_Context.currentData()
-        self.Tree_Xml_View.clear()
+        self.TreeWidget_Xml_View.clear()
 
         if context is None:
             # no context found
@@ -185,7 +185,7 @@ class TranslationHelper(QMainWindow, FormClass):
 
     def add_element_to_tree(self, element: _Element):
 
-        root = self.Tree_Xml_View.invisibleRootItem()
+        root = self.TreeWidget_Xml_View.invisibleRootItem()
         source = element.find("./source")
         translation = element.find("./translation")
 

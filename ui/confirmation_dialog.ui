@@ -58,14 +58,14 @@
       <item row="4" column="0">
        <layout class="QHBoxLayout" name="horizontalLayout">
         <item>
-         <widget class="QPushButton" name="But_Confirmation">
+         <widget class="QPushButton" name="Btn_Confirmation">
           <property name="text">
            <string>PushButton</string>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="But_Abort">
+         <widget class="QPushButton" name="Btn_Abort">
           <property name="text">
            <string>PushButton</string>
           </property>
@@ -102,14 +102,14 @@
         </property>
         <layout class="QGridLayout" name="gridLayout_3">
          <item row="1" column="0">
-          <widget class="QLabel" name="label_2">
+          <widget class="QLabel" name="Label_Captcha">
            <property name="text">
             <string>Lösung:</string>
            </property>
           </widget>
          </item>
          <item row="1" column="1">
-          <widget class="QLineEdit" name="Edit_Captcha">
+          <widget class="QLineEdit" name="LineEdit_Captcha">
            <property name="toolTip">
             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Aus dem Hinweistext kann ggf. der erforderliche Text mit Maus kopiert werden.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
            </property>
@@ -143,10 +143,10 @@
   </layout>
  </widget>
  <tabstops>
-  <tabstop>Edit_Captcha</tabstop>
+  <tabstop>LineEdit_Captcha</tabstop>
   <tabstop>CheckBox_Confirm</tabstop>
-  <tabstop>But_Confirmation</tabstop>
-  <tabstop>But_Abort</tabstop>
+  <tabstop>Btn_Confirmation</tabstop>
+  <tabstop>Btn_Abort</tabstop>
  </tabstops>
  <resources/>
  <connections/>
