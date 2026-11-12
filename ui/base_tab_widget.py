@@ -117,6 +117,7 @@ class TabModuleBase(UiModuleBase, QTabWidget):
         return -1
 
     def get_iter_tab_names(self, reversed_: bool = False) -> Iterator[Tuple[int, str]]:
+        """ Yields the tab names ordered by the tab index. """
 
         def _iter_helper(i):
             return i, self.tabText(i)
@@ -201,7 +202,6 @@ class TabModuleBase(UiModuleBase, QTabWidget):
 
         widget = self.widget(tab_index)
         children: List[UiModuleBase] = widget.findChildren(QWidget)
-
         module_widgets = [
             (child, child.objectName()) for child in children
             if isinstance(child, UiModuleBase) or hasattr(child, "_ui_module_base")
@@ -209,7 +209,6 @@ class TabModuleBase(UiModuleBase, QTabWidget):
         for child, _ in module_widgets:
             module = child if isinstance(child, UiModuleBase) else child._ui_module_base
             if not module.unloaded:
-
                 module.unload(True)
 
         if isinstance(widget, UiModuleBase):
