@@ -4,7 +4,6 @@
 
 from typing import Dict, List, Union, Tuple, Iterator, Optional
 
-
 from qgis.PyQt import sip
 from qgis.PyQt.QtWidgets import (QFrame, QWidget,
                                  QTabWidget, QGridLayout)
@@ -17,17 +16,18 @@ from .widgets import Widget, NoWheelTabBar
 
 class TabModuleBase(UiModuleBase, QTabWidget):
     """ Base class for a QTabWidget.
-
         Do not use following methods from outside this class:
             - `insertTab`
             - `removeTab`
         Use instead:
             - `insert_module_tab`
     """
+
     # True=visible, False=not visible
     widgetVisibilityChanged = pyqtSignal(bool, name="widgetVisibilityChanged")
 
     def __init__(self, **kwargs: dict):
+        """ Generic __init__ """
 
         UiModuleBase.__init__(self, **kwargs)
         QTabWidget.__init__(self, kwargs.get('parent', None))
@@ -60,7 +60,7 @@ class TabModuleBase(UiModuleBase, QTabWidget):
 
     def insert_module_tab(self, index: int, tab_name: str, object_name: str,
                           position: Optional[Tuple[int, int]] = None) -> Tuple[int, QFrame]:
-        """ insert a new tab and prepare a are where a other module can be loaded in.
+        """ Insert a new tab and prepare a are where a other module can be loaded in.
 
             :param index: index
             :param tab_name: tab name
@@ -98,21 +98,17 @@ class TabModuleBase(UiModuleBase, QTabWidget):
     def is_tab_name_in_use(self, tab_name: str) -> bool:
         """ Check if tab name is in use. case-sensitive.
 
-        :param tab_name: tab name
-        :return: True if tab name already in use, else False
+            :param tab_name: tab name
+            :return: True if tab name already in use, else False
         """
 
-        for index, name in self.get_iter_tab_names():
-            if tab_name == name:
-                return True
-
-        return False
+        return any(tab_name == name for _, name in self.get_iter_tab_names())
 
     def find_tab_index(self, tab_name: str) -> int:
-        """ finds tab index with name.
+        """ Finds tab index with name.
 
-        :param tab_name: tab name
-        :return: index of tab or -1 when not found.
+            :param tab_name: tab name
+            :return: index of tab or -1 when not found.
         """
         for index, name in self.get_iter_tab_names():
             if tab_name == name:
@@ -121,6 +117,7 @@ class TabModuleBase(UiModuleBase, QTabWidget):
         return -1
 
     def get_iter_tab_names(self, reversed_: bool = False) -> Iterator[Tuple[int, str]]:
+        """ Yields the tab names ordered by the tab index. """
 
         def _iter_helper(i):
             return i, self.tabText(i)
@@ -159,7 +156,7 @@ class TabModuleBase(UiModuleBase, QTabWidget):
         return tab_stop_widgets
 
     def unload(self, self_unload: bool = False):
-        """ will be called, when module will be unloaded
+        """ Will be called, when module will be unloaded.
 
             :param self_unload: only self unload, defaults to False
         """
@@ -173,9 +170,8 @@ class TabModuleBase(UiModuleBase, QTabWidget):
     def unload_object_name(self, object_name: str, restore_empty_frame: bool = True):
         """ Unloads object with given Qt object name
 
-        :param object_name: object name
-        :param restore_empty_frame: True = replace old module with empty frame widget
-        :return:
+            :param object_name: object name
+            :param restore_empty_frame: True = replace old module with empty frame widget
         """
         frame = self.get_widget(object_name)
         if frame:
@@ -206,7 +202,6 @@ class TabModuleBase(UiModuleBase, QTabWidget):
 
         widget = self.widget(tab_index)
         children: List[UiModuleBase] = widget.findChildren(QWidget)
-
         module_widgets = [
             (child, child.objectName()) for child in children
             if isinstance(child, UiModuleBase) or hasattr(child, "_ui_module_base")
@@ -214,7 +209,6 @@ class TabModuleBase(UiModuleBase, QTabWidget):
         for child, _ in module_widgets:
             module = child if isinstance(child, UiModuleBase) else child._ui_module_base
             if not module.unloaded:
-
                 module.unload(True)
 
         if isinstance(widget, UiModuleBase):
@@ -236,9 +230,11 @@ class TabModuleBase(UiModuleBase, QTabWidget):
         self.removeTab(tab_index)
 
     def hideEvent(self, event: QHideEvent):
+        """ Generic hide event. """
         event.accept()
         self.widgetVisibilityChanged.emit(False)
 
     def showEvent(self, event: QHideEvent):
+        """ Generic show event. """
         event.accept()
         self.widgetVisibilityChanged.emit(True)
