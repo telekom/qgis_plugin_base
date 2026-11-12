@@ -80,6 +80,7 @@ class VersionInfo:
 class VersionError:
     error: str
 
+
 # pyqt
 STYLE_SHEET_ERROR = "font-weight: bold; color: rgb(255, 0, 0);"
 STYLE_SHEET_WARNING = "font-weight: bold; color: rgb(162, 89, 0);"
@@ -103,7 +104,7 @@ STYLE_SHEET_SPIN_ERROR = "QSpinBox { background: rgba(255, 0, 0, 60);}"
 STYLE_SHEET_SPIN_NEUTRAL = ""
 
 STYLE_SHEET_COMBO_ERROR = "QComboBox { background: rgba(255, 0, 0, 60);}"
-STYLE_SHEET_COMBO_WARNING = "QComboBox { background: rgba(162, 89, 60);}"
+STYLE_SHEET_COMBO_WARNING = "QComboBox { background: rgba(162, 89, 0, 60);}"
 STYLE_SHEET_COMBO_NEUTRAL = ""
 
 # accessibility

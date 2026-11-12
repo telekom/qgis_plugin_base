@@ -18,7 +18,7 @@ def test_get_tab_stops_from_ui_file():
 
     file = Path(__file__).parent / "test_ui_base_class.ui"
     tab_stops = UiModuleBase.get_tab_stops_from_ui_file(file.as_posix())
-    assert tab_stops == ["But_A", "But_B", "But_C"]
+    assert tab_stops == ["Btn_A", "Btn_B", "Btn_C"]
 
 
 def test_ui_module_lifecycle_signals_have_distinct_names():
