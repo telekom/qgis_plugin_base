@@ -10,6 +10,7 @@ from qgis.PyQt.QtCore import QObject
 from qgis.PyQt.QtWidgets import QTabWidget, QWidget
 
 from .fixtures import plugin_qgis_new_project
+
 from ..ui.base_class import UiModuleBase
 from ..ui.base_tab_widget import TabModuleBase
 
