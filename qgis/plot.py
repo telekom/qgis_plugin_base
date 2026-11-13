@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: 2025 Deutsche Telekom Technik GmbH <f.vonstudsinske@telekom.de>
 # SPDX-License-Identifier: GPL-3.0-only
 
+from enum import Enum
 import math
 import os
 from pathlib import Path
@@ -27,11 +28,19 @@ from .rectangle import polygon_to_rectangle
 from .geometry import is_geometry_valid
 from .plot_layer import PlotLayer, PlotPage
 from .plot_layout_templates import PlotLayoutTemplates
+from .plot_page_builder import PageBuilder
+
+
+class PageType(Enum):
+    """ Page Types for 'setup_page' """
+
+    NORMAL = 0
+    OVERVIEW = 1
+    LEGEND = 2
 
 
 class PrintLayout(QObject):
-    """
-        Class holds QGIS PrintLayout to print it later to pdf or add it to QGIS Project instance.
+    """ Class holds QGIS PrintLayout to print it later to pdf or add it to QGIS Project instance.
         Per default live rendering is disabled and must be called separately.
 
         .. code-block:: python
@@ -44,6 +53,7 @@ class PrintLayout(QObject):
         :param plot_layer: plot layer object (combination of meta and polygon layer)
         :param layouts: layout templates
     """
+
     # pyqtSignal(current step, max steps, text)
     progressChanged = pyqtSignal(int, int, str, name="progressChanged")
 
@@ -58,7 +68,6 @@ class PrintLayout(QObject):
         self.__plot_layer = plot_layer
         self.__layouts = layouts
         self.__load_items_later_to_top: List[QgsLayoutItem] = []
-        self.__page_picture_item_with_new_map: Dict[QgsLayoutItemPicture, QgsLayoutItemMap] = {}
         self.__init_called: bool = False
 
         if self.plot_layer.get_next_page_number() <= 1:
@@ -71,19 +80,33 @@ class PrintLayout(QObject):
         self.layout.initializeDefaults()
         self.layout.pageCollection().clear()
 
-        # page iterations
-        max_normal_page_count = self.plot_layer.get_next_page_number() - 1
-        self.__main_count = max_normal_page_count
-        # extra page "Übersicht"
-        if self.plot_layer.create_overview_page:
-            self.__main_count += 1
-        # extra page "Legend"
-        if self.plot_layer.legend_on_extra_page:
-            self.__main_count += 1
+        self.__page_builder = PageBuilder(
+            self.layout,
+            self.layouts,
+            self.plot_layer,
+        )
+
+        self.__calculate_page_count()
 
         # max progress count and current progress step
         self.__main_count += 1
         self.__main_current = 0
+
+    def __calculate_page_count(self, pages_to_plot=[]):
+        """"Calculates amount of pages to plot"""
+        # page iterations
+        max_normal_page_count = self.plot_layer.get_next_page_number() - 1
+        self.__main_count = max_normal_page_count
+        if pages_to_plot:
+            self.__main_count = len(pages_to_plot)
+
+        # extra page "Übersicht"
+        if self.plot_layer.create_overview_page:
+            self.__main_count += 1
+
+        # extra page "Legend"
+        if self.plot_layer.legend_on_extra_page:
+            self.__main_count += 1
 
     def __load_translator(self):
 
@@ -96,7 +119,7 @@ class PrintLayout(QObject):
             # add the translator to the current Qt application
             QCoreApplication.instance().installTranslator(self._translator)
 
-    def init(self):
+    def init(self, pages_to_plot=[]):
         """ Initializes the plot layout and emits the progessChanged signal. """
         if self.__init_called:
             raise RuntimeError("init already called")
@@ -104,17 +127,28 @@ class PrintLayout(QObject):
 
         pages = {}
         all_map_items_for_extra_legend = []
+        item_extra_legend = None
 
-        # 1. overview page
+        self.__calculate_page_count(pages_to_plot)
+        self.__create_overview_page(pages, all_map_items_for_extra_legend)
+        item_extra_legend = self.__create_legend_page(pages)
+        self.__create_selected_pages(pages_to_plot, pages, all_map_items_for_extra_legend)
+        self.__finish_legend_page_setup(item_extra_legend, all_map_items_for_extra_legend)
+        self.__finalize_layout()
+
+    def __create_overview_page(self, pages, all_map_items_for_extra_legend):
+        """ Creates the Overview Page """
         if self.plot_layer.create_overview_page:
 
             # progress
             self.__main_current += 1
             self.progressChanged.emit(self.__main_current, self.__main_count,
-                                      self.tr_("Creating the overview page"))
+                                        self.tr_("Creating the overview page"))
 
             # create the new page with the copied items from the layout template
-            index, page, page_items = self.create_page(self.plot_layer.file)
+            created_page = self.__page_builder.create_page(self.plot_layer.file)
+            index = created_page.index
+            page_items = created_page.items
 
             # delete legend
             item_id = self.layouts[self.plot_layer.file].id_item_legend
@@ -157,24 +191,25 @@ class PrintLayout(QObject):
                             self.plot_layer.show_map_tips,
                             False,
                             None,
-                            1)
+                            PageType.OVERVIEW)
             pages['overview'] = (index, None, page_items)
 
             # append overview map item to the extra map legend list
             id_item_map = self.layouts[self.plot_layer.file].id_item_map
             all_map_items_for_extra_legend.append(page_items[id_item_map])
 
-        # 2. legend page, Landscape!
+    def __create_legend_page(self, pages):
+        """ Create legend on new page, Landscape! """
         if self.plot_layer.legend_on_extra_page:
             # progress
             self.__main_current += 1
             self.progressChanged.emit(self.__main_current, self.__main_count,
-                                      self.tr_("Creating extra legend page"))
+                                    self.tr_("Creating extra legend page"))
 
             # create the new page with only the legend
             item_extra_legend_page = QgsLayoutItemPage(self.layout)
             item_extra_legend_page.setPageSize(self.layouts[self.plot_layer.file].get_page_size().name,
-                                  QgsLayoutItemPage.Orientation(QgsLayoutItemPage.Landscape))
+                                QgsLayoutItemPage.Orientation(QgsLayoutItemPage.Landscape))
             self.layout.pageCollection().addPage(item_extra_legend_page)
             index = self.layout.pageCollection().pageCount() - 1
 
@@ -196,18 +231,29 @@ class PrintLayout(QObject):
             item_extra_legend = None
             item_extra_legend_page = None
 
-        # 3. pages
+        return item_extra_legend
+
+    def __create_selected_pages(self, pages_to_plot, pages, all_map_items_for_extra_legend):
+        """ Create selected pages """
         max_normal_page_count = self.plot_layer.get_next_page_number() - 1
-        for plot_page in self.plot_layer:
+        for index, plot_page in enumerate(self.plot_layer):
+            page_number = index + 1
+
+            # only plot selected pages, if none selected plot all
+            if pages_to_plot and page_number not in pages_to_plot:
+                continue
 
             # progress
             self.__main_current += 1
             self.progressChanged.emit(self.__main_current, self.__main_count,
-                                      f"{self.tr_('Creating')} {self.tr_('page')} "
-                                      f"{plot_page.page} / {max_normal_page_count}")
+                                        f"{self.tr_('Creating')} {self.tr_('page')} "
+                                        f"{plot_page.page} / {max_normal_page_count}")
 
             # create the new page with the copied items from the layout template
-            index, page, page_items = self.create_page(plot_page.file)
+            created_page = self.__page_builder.create_page(plot_page.file)
+            index = created_page.index
+            page_items = created_page.items
+
             pages[plot_page.page] = (index, plot_page, page_items)
 
             if not plot_page.show_mini_map:
@@ -235,7 +281,8 @@ class PrintLayout(QObject):
             if item_id in page_items:
                 self.layout.removeLayoutItem(page_items[item_id])
 
-        # extra legend page item is present
+    def __finish_legend_page_setup(self, item_extra_legend, all_map_items_for_extra_legend):
+        """ Applies legend settins and links to all selected pages """
         if item_extra_legend is not None:
             # get the visible legend layers
             layers = self.plot_layer.visibility.get_layer_visibilities('legend')
@@ -250,7 +297,8 @@ class PrintLayout(QObject):
             item_extra_legend.update()
             self.remove_legend_entries(item_extra_legend, visible_layers=layers)
 
-        # raise items to top
+    def __finalize_layout(self):
+        """ Finalizes the layout, raise items to top """
         for item in self.__load_items_later_to_top:
             self.layout.moveItemToTop(item, deferUpdate=True)
 
@@ -261,8 +309,7 @@ class PrintLayout(QObject):
         self.layout.update()
 
     def apply_default_render_context_settings(self):
-
-        # apply other flags directly to the render context
+        """ Apply other flags directly to the render context """
         render_context = self.layout.renderContext()
         render_context.setDpi(self.plot_layer.dpi)
         render_context.setFlag(QgsLayoutRenderContext.FlagAntialiasing, True)
@@ -289,240 +336,6 @@ class PrintLayout(QObject):
         # item_legend.setLegendFilterOutAtlas(True)  atlas printing not in use!
         item_legend.setLegendFilterByMapEnabled(True)  # buggy in QGIS 3.34
 
-    def create_page(self, file: str) -> Tuple[int, QgsLayoutItemPage, Dict[str, QgsLayoutItem]]:
-        """ Creates a page.
-            Most individual options per layout item will be copied to new layout item.
-
-            :returns 0: page index
-            :returns 1: page
-            :returns 2: item dictionary of items with element id
-        """
-        layout = self.layouts[file]  # layout to use as new page
-        item_page = QgsLayoutItemPage(self.layout)
-        item_page.setPageSize(layout.page.pageSize())
-        self.layout.pageCollection().addPage(item_page)
-        index = self.layout.pageCollection().pageCount() - 1
-
-        page_items = {}
-        map_old_new = {}
-        map_new_old = {}
-
-        linked_maps = {}  # new item, old map
-
-        for item in layout.item_list:
-
-            if isinstance(item, QgsLayoutItemPage):
-                continue
-
-            new_item = self.copy_layout_item(item, self.layout, linked_maps)[0]
-            new_item.setZValue(item.zValue())  # stacking/overlapping
-
-            new_item.setReferencePoint(item.referencePoint())
-
-            new_item.attemptMove(item.positionWithUnits(), page=index)
-            new_item.attemptResize(item.sizeWithUnits())
-
-            if item.id():
-                page_items[item.id()] = new_item
-                new_item.setId(f"{item.id()}_p{index}")
-
-            if (icon_path := layout.get_icon(item.id())) and Path(icon_path).is_file():
-                # icon path exists
-                if hasattr(new_item, "setPicturePath"):
-                    new_item.setPicturePath(icon_path)
-
-            # mappings
-            map_old_new[item] = new_item
-            map_new_old[new_item] = item
-
-        # load linked maps
-        for new_item, old_map in linked_maps.items():
-            new_item.setLinkedMap(map_old_new.get(old_map, None))
-            new_linked_map = map_old_new.get(old_map, None)
-            new_item.setLinkedMap(new_linked_map)
-            if isinstance(new_item, QgsLayoutItemPicture):
-                self.__page_picture_item_with_new_map[new_item] = new_linked_map
-
-        return index, item_page, page_items
-
-    def copy_layout_item(self, item: QgsLayoutItem, layout: QgsPrintLayout, linked_maps):
-
-        if isinstance(item, QgsLayoutFrame):
-            # since resaved layout templates QGIS 3.34
-            new_item = type(item)(layout, None)
-        else:
-            new_item = type(item)(layout)
-
-        layout.addLayoutItem(new_item)
-
-        # copy default options to new item
-        if hasattr(item, 'textFormat'):
-            # textFormat (old font) copy to new item
-            new_item.setTextFormat(QgsTextFormat(item.textFormat()))
-        elif hasattr(item, 'font'):
-            # DEPRECATED IN QGIS 3.34
-            # Font aufs neue Item übertragen
-            new_item.setFont(item.font())
-
-        # copy default options to new item
-        if hasattr(item, 'linkedMap'):
-            link = item.linkedMap()
-            if link is not None:
-                linked_maps[new_item] = link
-
-        # take flags
-        new_item.setFrameEnabled(item.frameEnabled())
-        if new_item.frameEnabled():
-            new_item.setFrameStrokeColor(item.frameStrokeColor())
-            new_item.setFrameStrokeWidth(item.frameStrokeWidth())
-        new_item.setBackgroundEnabled(item.hasBackground())
-        if new_item.hasBackground():
-            new_item.setBackgroundColor(item.backgroundColor())
-        new_item.setItemRotation(item.itemRotation())
-        new_item.setLocked(item.isLocked())
-        new_item.setExcludeFromExports(item.excludeFromExports())
-
-        # copy type specific options to new item
-        if isinstance(new_item, QgsLayoutItemMap):
-            # exportLayerDetails: not used, because it can be different between project files
-            # exportLayerBehavior: not used, because it can be different between project files
-            # mapRotation: every time north
-            # setAtlasDriven: every time False, no Atlas support
-            # setDrawAnnotations: maybe overwritten
-            # dpi: will be set later
-            # scale: will be set later
-            # setExtent: will be set later
-            new_item.setFrameStrokeWidth(item.frameStrokeWidth())
-            new_item.setMapRotation(0)
-
-            # if not set (setExtent), map will not be valid (containing nan-values)
-            size = new_item.sizeWithUnits()  # old/copied size
-            new_item.attemptResize(size)  # MUST HAVE, bad QGIS! 1. attemptResize
-            new_item.setRect(item.rect())  # MUST HAVE, bad QGIS! 2. setRect
-            new_item.setExtent(QgsRectangle(0.1, 0.1, 0.2, 0.2))  # MUST HAVE, bad QGIS! 3. setExtent
-            new_item.setCrs(self.plot_layer.get_crs())
-            new_item.setScale(500, True)
-
-        if isinstance(new_item, QgsLayoutItemPicture):
-            # setPicturePath: Use picture, if it is there
-            # setSvgFillColor: not used
-            # setSvgStrokeColor: not used
-            # setSvgStrokeWidth: not used
-            new_item.setMode(item.mode())
-
-            if item.linkedMap() is not None:
-                new_item.setNorthMode(item.northMode())
-                new_item.setNorthOffset(item.northOffset())
-            else:
-                new_item.setPictureRotation(item.pictureRotation())
-                new_item.setPictureAnchor(item.pictureAnchor())
-
-            new_item.setResizeMode(item.resizeMode())
-
-            picture_path = item.picturePath()
-            if Path(picture_path).is_file():
-                new_item.setPicturePath(picture_path)
-
-            # if an svg mode is set, apply the svg settings
-            if new_item.mode() == QgsLayoutItemPicture.FormatSVG:
-                new_item.setSvgDynamicParameters(item.svgDynamicParameters())
-                new_item.setSvgFillColor(item.svgFillColor())
-                new_item.setSvgStrokeColor(item.svgStrokeColor())
-                new_item.setSvgStrokeWidth(item.svgStrokeWidth())
-
-        if isinstance(new_item, QgsLayoutItemLabel):
-            new_item.setHAlign(item.hAlign())
-            new_item.setVAlign(item.vAlign())
-            new_item.setMarginX(item.marginX())
-            new_item.setMarginY(item.marginY())
-            new_item.setMode(item.mode())
-            new_item.setText(item.text())
-
-        if isinstance(new_item, QgsLayoutItemLegend):
-            # exportLayerBehavior: not used
-            new_item.setLegendFilterByMapEnabled(item.legendFilterByMapEnabled())
-            new_item.setLineSpacing(item.lineSpacing())
-            new_item.setMaximumSymbolSize(item.maximumSymbolSize())
-            new_item.setAutoUpdateModel(item.autoUpdateModel())
-            new_item.setBoxSpace(item.boxSpace())
-            new_item.setEqualColumnWidth(item.equalColumnWidth())
-            new_item.setResizeToContents(item.resizeToContents())
-            new_item.setSplitLayer(item.splitLayer())
-            new_item.setSymbolAlignment(item.symbolAlignment())
-            new_item.setSymbolHeight(item.symbolHeight())
-            new_item.setSymbolWidth(item.symbolWidth())
-            new_item.setTitle(item.title())
-            new_item.setTitleAlignment(item.titleAlignment())
-            new_item.setWmsLegendHeight(item.wmsLegendHeight())
-            new_item.setWmsLegendWidth(item.wmsLegendWidth())
-            new_item.setWrapString(item.wrapString())
-            if item.drawRasterStroke():
-                new_item.setDrawRasterStroke(True)
-                new_item.setRasterStrokeColor(item.rasterStrokeColor())
-                new_item.setRasterStrokeWidth(item.rasterStrokeWidth())
-
-            # styles
-            styles = [QgsLegendStyle.Title, QgsLegendStyle.Subgroup,
-                      QgsLegendStyle.SymbolLabel, QgsLegendStyle.Symbol,
-                      QgsLegendStyle.Group]
-            for style in styles:
-                new_item.setStyleFont(style, item.styleFont(style))
-                new_item.setStyle(style, item.style(style))
-
-        if isinstance(new_item, QgsLayoutItemScaleBar):
-            new_item.setAlignment(item.alignment())
-            symbol = item.alternateFillSymbol().clone()  # without clone, Qgis crash (object ownership)!
-            new_item.setAlternateFillSymbol(symbol)
-
-            new_item.setBoxContentSpace(item.boxContentSpace())
-
-            symbol = item.divisionLineSymbol().clone()  # without clone, Qgis crash (object ownership)!
-            new_item.setDivisionLineSymbol(symbol)
-
-            symbol = item.fillSymbol().clone()  # without clone, Qgis crash (object ownership)!
-            new_item.setFillSymbol(symbol)
-
-            new_item.setHeight(item.height())
-            new_item.setLabelBarSpace(item.labelBarSpace())
-            new_item.setLabelHorizontalPlacement(item.labelHorizontalPlacement())
-            new_item.setLabelVerticalPlacement(item.labelVerticalPlacement())
-
-            symbol = item.lineSymbol().clone()  # without clone, Qgis crash (object ownership)!
-            new_item.setLineSymbol(symbol)
-
-            new_item.setMapUnitsPerScaleBarUnit(item.mapUnitsPerScaleBarUnit())
-            new_item.setSegmentSizeMode(item.segmentSizeMode())
-            new_item.setMaximumBarWidth(item.maximumBarWidth())
-            new_item.setMinimumBarWidth(item.minimumBarWidth())
-            new_item.setStyle(item.style())
-
-            symbol = item.subdivisionLineSymbol().clone()  # without clone, Qgis crash (object ownership)!
-            new_item.setSubdivisionLineSymbol(symbol)
-
-            new_item.setSubdivisionsHeight(item.subdivisionsHeight())
-            new_item.setTextFormat(item.textFormat())
-            new_item.setUnitLabel(item.unitLabel())
-            new_item.setUnits(item.units())
-            new_item.setUnitsPerSegment(item.unitsPerSegment())
-
-        if isinstance(new_item, QgsLayoutItemPolyline):
-            new_item.setArrowHeadFillColor(item.arrowHeadFillColor())
-            new_item.setArrowHeadStrokeColor(item.arrowHeadStrokeColor())
-            new_item.setArrowHeadStrokeWidth(item.arrowHeadStrokeWidth())
-            new_item.setArrowHeadWidth(item.arrowHeadWidth())
-            new_item.setEndSvgMarkerPath(item.endSvgMarkerPath())
-            new_item.setStartSvgMarkerPath(item.startSvgMarkerPath())
-            new_item.setEndMarker(item.endMarker())
-            new_item.setStartMarker(item.startMarker())
-            new_item.setMinimumSize(item.minimumSize())
-
-            symbol = item.symbol().clone()
-            new_item.setSymbol(symbol)
-
-            new_item.refresh()
-
-        return new_item, linked_maps
-
     def setup_page(self, page_str: str,
                    page_items: Dict[str, Union[QgsLayoutItem, QgsLayoutItemMap, QgsLayoutItemPicture,
                    QgsLayoutItemLegend, QgsLayoutItemLabel]],
@@ -533,13 +346,51 @@ class PrintLayout(QObject):
                    show_map_tips,
                    show_legend_on_page,
                    plot_page: PlotPage = None,
-                   page_type: int = 0):
+                   page_type: PageType = PageType.NORMAL):
         """ Setups the page with defined options in page (visibility etc.)
 
-            page_type: 0=normal page, 1=overview, 2=legend page
+            page_type(enum: PageType): 0=normal page, 1=overview, 2=legend page
         """
         layout = self.layouts[file]
 
+        self.__setup_page_labels(layout, page_items, page_str)
+
+        item_map = self.__setup_page_map(layout,
+            page_items,
+            visibility,
+            page_type,
+            feature,
+            scale,
+            show_map_tips
+            )
+
+        self.__setup_page_minimap(
+            layout,
+            page_items,
+            visibility,
+            page_type,
+            feature
+            )
+
+        self.__setup_page_legend(
+            layout,
+            page_items,
+            visibility,
+            show_legend_on_page,
+            )
+
+        self.__setup_page_item_map_scale_text(
+            layout,
+            page_items,
+            scale,
+            item_map,
+            plot_page,
+            page_type
+            )
+    ###
+
+    def __setup_page_labels(self, layout, page_items, page_str):
+        """ Set labels, CRS, page numbers, date and icons """
         # crs name
         item_id = layout.id_item_crs
         if item_id in page_items:
@@ -579,91 +430,105 @@ class PrintLayout(QObject):
         if item_id in page_items:
             item_company_icon: QgsLayoutItemPicture = page_items[item_id]
 
-        # item_map
+    def __setup_page_map(self, layout, page_items, visibility, page_type, feature, scale, show_map_tips):
+        """ Set main Map and sort layers """
         item_id = layout.id_item_map
-        if item_id in page_items and visibility is not None:
-            item_map: QgsLayoutItemMap = page_items[item_id]
-            layer_pages = self.plot_layer.layer_pages
+        item_map: QgsLayoutItemMap = page_items.get(item_id)
 
-            # sort layers
-            layers_to_use = []
-            if page_type == 0:
-                # single page
-                layers = visibility.get_layer_visibilities('page')
-            elif page_type == 1:
-                # overview page
-                layers = [layer_pages] + visibility.get_layer_visibilities('overview')
-            else:
-                raise AssertionError(f"page_type {page_type} unknown")
+        if item_map is None or visibility is None:
+            return None
 
-            for layer in QgsProject.instance().layerTreeRoot().layerOrder():
-                if layer in layers:
-                    layers_to_use.append(layer)
+        item_map: QgsLayoutItemMap = page_items[item_id]
+        layer_pages = self.plot_layer.layer_pages
 
-            self.configure_map(item_map,
-                               polygon_to_rectangle(feature.geometry()),
-                               scale,
-                               layers_to_use,
-                               show_map_tips)
+        # sort layers
+        layers_to_use = []
+        if page_type == PageType.NORMAL:
+            # single page
+            layers = visibility.get_layer_visibilities('page')
+        elif page_type == PageType.OVERVIEW:
+            # overview page
+            layers = [layer_pages] + visibility.get_layer_visibilities('overview')
         else:
-            item_map = None
-        # item_minimap
+            raise AssertionError(f"page_type {page_type} unknown")
+
+        for layer in QgsProject.instance().layerTreeRoot().layerOrder():
+            if layer in layers:
+                layers_to_use.append(layer)
+
+        self.configure_map(item_map,
+                            polygon_to_rectangle(feature.geometry()),
+                            scale,
+                            layers_to_use,
+                            show_map_tips)
+        return item_map
+
+    def __setup_page_minimap(self, layout, page_items, visibility, page_type, feature):
+        """ Configure minimap for normal pages """
         item_id = layout.id_item_minimap
-        if item_id in page_items and visibility is not None and page_type == 0:
-            item_minimap: QgsLayoutItemMap = page_items[item_id]
-            layer_pages = self.plot_layer.layer_pages
+        item_minimap: QgsLayoutItemMap = page_items.get(item_id)
 
-            # sort layer visibilities
-            layers_to_use = []
-            layers = [layer_pages] + visibility.get_layer_visibilities('mini_map')
-            for layer in QgsProject.instance().layerTreeRoot().layerOrder():
-                if layer in layers:
-                    layers_to_use.append(layer)
+        if (
+            item_minimap is None or
+            visibility is None or
+            page_type != PageType.NORMAL
+            ):
+            return
 
-            rect: QgsRectangle = polygon_to_rectangle(feature.geometry())
-            rect_scaled = rect.scaled(1.25)
-            # Never show map annotations on mini map
-            self.configure_map(item_minimap,
-                               rect_scaled,
-                               0,
-                               layers_to_use,
-                               False)
+        layer_pages = self.plot_layer.layer_pages
 
-            # a dirty trick to create a yellow rectangle on minimap
-            shape = QgsLayoutItemShape(self.layout)
-            shape.setReferencePoint(shape.Middle)
-            shape.setId(f"minimap_shape_p{item_minimap.page()}")
-            self.layout.addLayoutItem(shape)
+        # sort layer visibilities
+        layers_to_use = []
+        layers = [layer_pages] + visibility.get_layer_visibilities('mini_map')
+        for layer in QgsProject.instance().layerTreeRoot().layerOrder():
+            if layer in layers:
+                layers_to_use.append(layer)
 
-            # create new symbol
-            shape.setShapeType(shape.Rectangle)
-            symbol: QgsFillSymbol = shape.symbol().clone()
-            symbol.setOpacity(0.3)
-            sym_layer = symbol.symbolLayer(0)
-            sym_layer.setFillColor(QColor('yellow'))
-            sym_layer.setStrokeColor(QColor('black'))
-            properties = sym_layer.dataDefinedProperties()
-            stroke_width = properties.property(sym_layer.PropertyStrokeWidth)
-            stroke_width.setStaticValue(0)
-            properties.setProperty(sym_layer.PropertyStrokeWidth, stroke_width)
-            sym_layer.setDataDefinedProperties(properties)
-            shape.setSymbol(symbol)
-            page_items[shape.id()] = shape
-            self.__load_items_later_to_top.append(shape)  # to move to top
+        rect: QgsRectangle = polygon_to_rectangle(feature.geometry())
+        rect_scaled = rect.scaled(1.25)
+        # Never show map annotations on mini map
+        self.configure_map(item_minimap,
+                            rect_scaled,
+                            0,
+                            layers_to_use,
+                            False)
 
-            # find position, use center from mini map
-            point = item_minimap.positionAtReferencePoint(shape.Middle)
-            layout_point = QgsLayoutPoint(point,
-                                          QgsUnitTypes.LayoutMillimeters)
-            size: QgsLayoutSize = shape.sizeWithUnits()
-            size.setWidth(int(min(item_minimap.sizeWithUnits().height(),
-                                  item_minimap.sizeWithUnits().width()) / 1.5))
-            size.setHeight(int(min(item_minimap.sizeWithUnits().height(),
-                                   item_minimap.sizeWithUnits().width()) / 1.5))
-            shape.attemptResize(size)
-            shape.attemptMove(layout_point)
+        # a dirty trick to create a yellow rectangle on minimap
+        shape = QgsLayoutItemShape(self.layout)
+        shape.setReferencePoint(shape.Middle)
+        shape.setId(f"minimap_shape_p{item_minimap.page()}")
+        self.layout.addLayoutItem(shape)
 
-        # item_legend
+        # create new symbol
+        shape.setShapeType(shape.Rectangle)
+        symbol: QgsFillSymbol = shape.symbol().clone()
+        symbol.setOpacity(0.3)
+        sym_layer = symbol.symbolLayer(0)
+        sym_layer.setFillColor(QColor('yellow'))
+        sym_layer.setStrokeColor(QColor('black'))
+        properties = sym_layer.dataDefinedProperties()
+        stroke_width = properties.property(sym_layer.PropertyStrokeWidth)
+        stroke_width.setStaticValue(0)
+        properties.setProperty(sym_layer.PropertyStrokeWidth, stroke_width)
+        sym_layer.setDataDefinedProperties(properties)
+        shape.setSymbol(symbol)
+        page_items[shape.id()] = shape
+        self.__load_items_later_to_top.append(shape)  # to move to top
+
+        # find position, use center from mini map
+        point = item_minimap.positionAtReferencePoint(shape.Middle)
+        layout_point = QgsLayoutPoint(point,
+                                        QgsUnitTypes.LayoutMillimeters)
+        size: QgsLayoutSize = shape.sizeWithUnits()
+        size.setWidth(int(min(item_minimap.sizeWithUnits().height(),
+                                item_minimap.sizeWithUnits().width()) / 1.5))
+        size.setHeight(int(min(item_minimap.sizeWithUnits().height(),
+                                item_minimap.sizeWithUnits().width()) / 1.5))
+        shape.attemptResize(size)
+        shape.attemptMove(layout_point)
+
+    def __setup_page_legend(self, layout, page_items, visibility, show_legend_on_page):
+        """ Configure or remove the page legend """
         item_id = layout.id_item_legend
         if item_id in page_items and visibility is not None:
             layers = visibility.get_layer_visibilities('legend')
@@ -679,8 +544,10 @@ class PrintLayout(QObject):
                 self.__configure_item_legend(item_legend)
                 self.remove_legend_entries(item_legend, visible_layers=layers)
 
-        # item_map_scale_text
+    def __setup_page_item_map_scale_text(self, layout, page_items, scale, item_map, plot_page, page_type):
+        """ Scales text for item map """
         item_id = layout.id_item_map_scale_text
+
         if item_id in page_items:
             item_text_scale: QgsLayoutItemLabel = page_items[item_id]
             if scale > 0:
@@ -690,12 +557,12 @@ class PrintLayout(QObject):
             else:
                 item_text_scale.setText("ubk.")
 
-        if plot_page is not None or page_type == 1:
+        if plot_page is not None or page_type == PageType.OVERVIEW:
             # load user individual texts to page
             layer_options = self.plot_layer.options
-            if page_type == 0:
+            if page_type == PageType.NORMAL:
                 page_options = plot_page.options
-            elif page_type == 1:
+            elif page_type == PageType.OVERVIEW:
                 page_options = {}
             else:
                 raise AssertionError(f"page_type {page_type} unknown")
@@ -713,6 +580,7 @@ class PrintLayout(QObject):
                     item: QgsLayoutItemLabel = page_items[item_id]
                     item.setText(str(value).lstrip().rstrip())
 
+    ###
     def configure_map(self, item_map: QgsLayoutItemMap, rectangle, scale: int,
                       layers: List[QgsMapLayer], annotations: bool):
         # if list is empty, each layer will be visible depending on qgis settings
