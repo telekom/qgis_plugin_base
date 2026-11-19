@@ -132,7 +132,7 @@ def get_layers_from_source(source: str) -> List[QgsMapLayer]:
     return to_return
 
 
-def ensure_measurement_ellipsoid(ellipsoid: str = "EPSG:7030") -> bool:
+def ensure_measurement_ellipsoid(ellipsoid: str = "EPSG:7030"):
     """ Sets the project measurement ellipsoid (default WGS 84), if it differs. """
     project = QgsProject.instance()
     if project.ellipsoid() == ellipsoid:
