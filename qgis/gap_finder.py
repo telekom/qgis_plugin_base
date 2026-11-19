@@ -3,10 +3,11 @@
 # SPDX-License-Identifier: GPL-3.0-only
 
 from enum import Enum, auto
+from math import isfinite
 from pathlib import Path
 from typing import Optional, List, Set, Tuple
 
-from qgis.core import (QgsVectorLayer, QgsField, QgsSpatialIndex, QgsFeature,
+from qgis.core import (QgsVectorLayer, QgsField, QgsSpatialIndex, QgsFeature, QgsFeatureRequest,
                        QgsGeometry, QgsPointXY, QgsRectangle, NULL)
 from qgis.PyQt.QtCore import QVariant, QObject, pyqtSignal
 
@@ -96,9 +97,14 @@ class GapFinder(QObject):
     subProgressChanged = pyqtSignal(int, int, str, name="subProgressChanged")
 
     def __init__(self, layer: QgsVectorLayer, modes: List[CheckTypes],
-                 distance: float = EPSILON * 2, parent: Optional[QObject] = None):
+                 distance: float = EPSILON * 2, parent: Optional[QObject] = None,
+                 minimum_distance: float = 0.0, ignore_connected_pairs: bool = False):
         super().__init__(parent)
 
+        if not isfinite(minimum_distance) or minimum_distance < 0:
+            raise ValueError("minimum_distance must be finite and non-negative")
+        self.minimum_distance = minimum_distance
+        self.ignore_connected_pairs = ignore_connected_pairs
         self.modes = modes
         self.__current_main_step = 0
 
@@ -106,17 +112,21 @@ class GapFinder(QObject):
         self.spatial_line_end = LineEndsToPointSpatialIndexV2([0, -1])
         self.spatial_line_end.init(layer)
 
-        if CheckTypes.OnSegmentSnapped in self.modes:
+        if (CheckTypes.OnSegmentSnapped in self.modes
+                or CheckTypes.RequiresSegmentSplit in self.modes
+                or (ignore_connected_pairs and CheckTypes.LineEnds in self.modes)):
             # create a spatial index with the cached geometries
             self.__spatial_index_snapped_segment: Optional[QgsSpatialIndex] = QgsSpatialIndex(
-                layer, flags=QgsSpatialIndex.FlagStoreFeatureGeometries)
+                layer.getFeatures(QgsFeatureRequest().setNoAttributes()),
+                flags=QgsSpatialIndex.FlagStoreFeatureGeometries)
         else:
             self.__spatial_index_snapped_segment: Optional[QgsSpatialIndex] = None
 
         self.layer = layer
         self.distance = distance
-        self._handled_point_fids = []
+        self._handled_point_fids = set()
         self._handled_point_fids_segment = set()
+        self._connected_endpoints = {}
 
         # result layer with point features where maybe is a gap
         self.debug_layer: Optional[QgsVectorLayer] = None
@@ -133,7 +143,7 @@ class GapFinder(QObject):
             self.subProgressChanged.emit(i, point_count, "")
 
             if CheckTypes.LineEnds in self.modes or CheckTypes.PointWktEquals in self.modes:
-                self.__check_line_ends(point)
+                self.__check_line_ends(point, point_fid)
 
             if CheckTypes.RequiresSegmentSplit in self.modes:
                 self.__check_segment(point, point_fid)
@@ -201,8 +211,12 @@ class GapFinder(QObject):
 
         errors = set()
 
-        for geometry in map(self.layer.getGeometry, nearest_line_fids):
-            sqrt_distance, closest_point, after_vertex, _ = geometry.closestSegmentWithContext(point)
+        for geometry in map(self.__spatial_index_snapped_segment.geometry, nearest_line_fids):
+            # QGIS's default snapping epsilon can zero out micrometre-scale gaps.
+            if self.minimum_distance > 0:
+                sqrt_distance, closest_point, after_vertex, _ = geometry.closestSegmentWithContext(point, 0.0)
+            else:
+                sqrt_distance, closest_point, after_vertex, _ = geometry.closestSegmentWithContext(point)
             if sqrt_distance < 0:
                 # noinspection PyProtectedMember
                 # negative on error
@@ -211,13 +225,19 @@ class GapFinder(QObject):
                                  f"for coordinate {point.asWkt()}")}
                 continue
 
-            if closest_point.distance(point) > self.distance:
+            point_distance = closest_point.distance(point)
+            if point_distance < self.minimum_distance:
+                # A connection within the relevance threshold is not a gap.
+                return
+
+            if point_distance > self.distance:
                 # ignore, to far away
                 # not expected to be the case, because only features/geometries are in check
                 #   based on the geometry distance, not the bbox (flag)
                 continue
 
-            if not is_point_on_line(point, geometry.asPolyline(), epsilon=EPSILON):
+            if (self.minimum_distance > 0
+                    or not is_point_on_line(point, geometry.asPolyline(), epsilon=EPSILON)):
                 errors |= {(point, CheckTypes.OnSegmentSnapped, f"Entfernung: {sqrt_distance}")}
             else:
                 # at least one VALID point found, do nothing
@@ -233,8 +253,7 @@ class GapFinder(QObject):
             :param point_fid: point fid from self.spatial_line_end
         """
         # FIXME Ändern auf, dass geprüft wird, dass ein Segment hier geteilt werden sollte.
-        spatial_segment = QgsSpatialIndex(self.layer)
-        neighbor = spatial_segment.intersects(QgsRectangle.fromCenterAndSize(
+        neighbor = self.__spatial_index_snapped_segment.intersects(QgsRectangle.fromCenterAndSize(
             point, self.distance * 2, self.distance * 2))
         source_fid = self.spatial_line_end.get_source_fid(point_fid)
         for nid in neighbor:
@@ -272,7 +291,28 @@ class GapFinder(QObject):
             # add it
             self.points |= {(point, CheckTypes.RequiresSegmentSplit, None)}
 
-    def __check_line_ends(self, point: QgsPointXY):
+    def __endpoint_connected(self, point_fid: int) -> bool:
+        if point_fid in self._connected_endpoints:
+            return self._connected_endpoints[point_fid]
+        point = self.spatial_line_end.get_point_from_point_fid(point_fid)
+        source_fid = self.spatial_line_end.get_source_fid(point_fid)
+        tolerance = self.minimum_distance
+        rect = QgsRectangle(point.x() - tolerance, point.y() - tolerance,
+                            point.x() + tolerance, point.y() + tolerance)
+        for fid in self.__spatial_index_snapped_segment.intersects(rect):
+            if fid == source_fid:
+                continue
+            geometry = self.__spatial_index_snapped_segment.geometry(fid)
+            squared_distance, _, _, _ = geometry.closestSegmentWithContext(point, 0.0)
+            if squared_distance < 0:
+                raise RuntimeError(f"Could not check endpoint connectivity for feature {fid}")
+            if squared_distance == 0 or squared_distance < tolerance * tolerance:
+                self._connected_endpoints[point_fid] = True
+                return True
+        self._connected_endpoints[point_fid] = False
+        return False
+
+    def __check_line_ends(self, point: QgsPointXY, current_point_fid: int):
         """ Performs a spatial test on self.spatial_line_end to find not snapped line ends/starts.
 
             :param point: point to test
@@ -284,6 +324,13 @@ class GapFinder(QObject):
                                                                                    self.distance * 2,
                                                                                    self.distance * 2))
         errors = set()
+        suppress_connected = self.ignore_connected_pairs and CheckTypes.LineEnds in self.modes
+        if suppress_connected and current_point_fid in self._handled_point_fids:
+            return
+
+        if suppress_connected:
+            neighbor.sort(key=lambda fid: (
+                self.spatial_line_end.get_point_from_point_fid(fid).distance(point), fid))
 
         for point_fid in neighbor:
             if point_fid in self._handled_point_fids:
@@ -294,6 +341,9 @@ class GapFinder(QObject):
             source_point = self.spatial_line_end.get_point_from_point_fid(point_fid)
             distance = source_point.distance(point)
 
+            if distance < self.minimum_distance:
+                continue
+
             point_wkt = point.asWkt()
             source_point_wkt = source_point.asWkt()
 
@@ -302,9 +352,18 @@ class GapFinder(QObject):
                 # break here, because the nearestNeighbor list is sorted by distance
                 break
 
-            if CheckTypes.LineEnds in self.modes and not point.compare(source_point, EPSILON):
+            if (suppress_connected
+                    and self.__endpoint_connected(current_point_fid)
+                    and self.__endpoint_connected(point_fid)):
+                continue
+
+            if (CheckTypes.LineEnds in self.modes
+                    and (self.minimum_distance > 0
+                         or not point.compare(source_point, EPSILON))):
                 errors |= {(point, CheckTypes.LineEnds, f"A: {point_wkt}\nB: {source_point_wkt}")}
                 errors |= {(source_point, CheckTypes.LineEnds, f"A: {point_wkt}\nB: {source_point_wkt}")}
+                if suppress_connected:
+                    self._handled_point_fids.update((current_point_fid, point_fid))
                 # break, invalid coordinate found
                 break
 
@@ -323,7 +382,8 @@ class GapFinder(QObject):
                 # break, invalid coordinate found
                 break
 
-        self._handled_point_fids.extend(neighbor)
+        if not suppress_connected:
+            self._handled_point_fids.update(neighbor)
         self.points |= errors
 
     def __check_overlapping_parts(self):
