@@ -13,7 +13,7 @@ from typing import Optional, List, Tuple, Union
 from pathlib import Path
 
 
-def get_project_layers(layer_type: QgsMapLayerType = QgsMapLayer.VectorLayer, 
+def get_project_layers(layer_type: QgsMapLayerType = QgsMapLayer.VectorLayer,
                        geometry_type: Optional[QgsWkbTypes.GeometryType] = None) -> List[QgsMapLayer]:
     """ Returns all layers from qgis instance by layer type.
 
@@ -132,31 +132,14 @@ def get_layers_from_source(source: str) -> List[QgsMapLayer]:
     return to_return
 
 
-def warn_unexpected_measurement_ellipsoid() -> bool:
-    """ Shows a popup if the expected ellipsoid is different to the current ellipsoid.
-        Returns True in case of shown messagebox.
-    """
-    from qgis.utils import iface
+def ensure_measurement_ellipsoid(ellipsoid: str = "EPSG:7030"):
+    """ Sets the project measurement ellipsoid (default WGS 84), if it differs. """
+    project = QgsProject.instance()
+    if project.ellipsoid() == ellipsoid:
+        return
 
-    current_ellipsoid = QgsProject.instance().ellipsoid()
-    recommended_ellipsoid = "EPSG:7030"
-    if current_ellipsoid != recommended_ellipsoid:
-        # WGS 84
-        reply = QMessageBox.warning(
-            iface.mainWindow(),
-            'Warnung: QGIS-Messwerkzeug',
-            f'In den QGIS Projekteigenschaften ist das Mess-Ellipsoid {current_ellipsoid} eingestellt.\n\n'
-            f'Für Meter-genaue Messungen wird das Ellipsoid {recommended_ellipsoid} empfohlen.\n\n'
-            'Einstellbar ist dies über die QGIS Menüleiste:\n'
-            '-> Projekt\n'
-            '-> Eigenschaften\n'
-            '-> Menü "Allgemein"\n'
-            '-> Bereich "Messungen"\n'
-            '-> Ellipsoid-Dropdown\n\n'
-            f'Hier nach "WGS 84 ({current_ellipsoid})" suchen und wählen.')
-        return True
-
-    return False
+    project.setEllipsoid(ellipsoid)
+    return
 
 
 def warn_inactive_snapping_tool() -> bool:
