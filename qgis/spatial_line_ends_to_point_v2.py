@@ -58,6 +58,8 @@ class LineEndsToPointSpatialIndexV2(QgsSpatialIndex):
         :param vertex_type: vertex type, per segment in geometry or per vertex index from whole geometry?
         :param create_debug_layer: create a debug layer?
         :param keep_attributes: keep attributes from features in mapping dict
+        :param extended_geometry_validation: Extend the geometry validation with further checks.
+                                             Set to False will still ignore NULL, EMPTY and NOT isGeosValid geometries.
 
     """
 
@@ -70,7 +72,8 @@ class LineEndsToPointSpatialIndexV2(QgsSpatialIndex):
     PER_GEOMETRY_VERTEX = VertexOptions.PER_GEOMETRY_VERTEX
 
     def __init__(self, vertices: Optional[List[int]] = None, vertex_type: VertexOptions = PER_SEGMENT,
-                 create_debug_layer: bool = False, keep_attributes: bool = False):
+                 create_debug_layer: bool = False, keep_attributes: bool = False,
+                 extended_geometry_validation: bool = True):
 
         if vertices is None:
             vertices = []
@@ -84,6 +87,7 @@ class LineEndsToPointSpatialIndexV2(QgsSpatialIndex):
         self._vertices = vertices
         self.__init_called: bool = False
         self.__keep_attributes: bool = keep_attributes
+        self.__extended_geometry_validation: bool = extended_geometry_validation
         self.__create_debug_layer: bool = create_debug_layer
         self._only_ends = 0 in vertices and -1 in vertices  # geometry ends available
         self._feature_count = 0  # counter and id of each spatial feature
@@ -155,7 +159,10 @@ class LineEndsToPointSpatialIndexV2(QgsSpatialIndex):
             if not isinstance(feature, QgsFeature):
                 raise ValueError(f"object at {i} is not a QgsFeature, got {feature}")
 
-            if not is_line_geometry_valid(feature.geometry()):
+            geometry = feature.geometry()
+            valid = not geometry.isNull() and not geometry.isEmpty() and geometry.isGeosValid()
+
+            if not valid or (self.__extended_geometry_validation and not is_line_geometry_valid(geometry)):
                 self.not_loaded_ids.append(feature.id())
                 continue
 
