@@ -82,6 +82,7 @@ class Plugin(ModuleBase, QObject):
 
         # may contain collected Python errors caught by the QGIS ui
         self.QGIS_Python_Errors = []
+        self.QGIS_Python_Full_Error_Messages = []
 
         # update action to update the plugin via the UI
         self.update_action = None
@@ -357,14 +358,14 @@ class Plugin(ModuleBase, QObject):
             :param level: priority level
         """
         try:
-            msg_text = msg_text.encode('utf-8').decode('utf-8').lower()
+            msg_text = msg_text.encode('utf-8').decode('utf-8')
         except UnicodeEncodeError:
             # if the message text cannot be encoded/decoded, it is not processable, just skip it
             return False
 
         # logged msg_text via QgsApplication.logMessage contains a text to identify a Python error
         error_text = QgsApplication.translate("Python", "Python error").lower()  # DE: Python-Fehler, ...
-        if msg_text.startswith(error_text):
+        if msg_text and tag.lower() == error_text:
 
             if hasattr(sys, "last_type"):
                 cur_type = sys.last_type
@@ -396,6 +397,7 @@ class Plugin(ModuleBase, QObject):
                 return
 
             self.QGIS_Python_Errors.append(cur_trace_err)
+            self.QGIS_Python_Full_Error_Messages.append(msg_text)
             self.python_error_checkcache()
 
             self.log(cur_trace_err, level=self.CRITICAL)
