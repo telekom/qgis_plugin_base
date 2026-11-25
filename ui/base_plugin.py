@@ -370,33 +370,19 @@ class Plugin(ModuleBase, QObject):
             if plugin_folder_name not in msg_text:
                 return False
 
-            if hasattr(sys, "last_type"):
-                cur_type = sys.last_type
+            if hasattr(sys, "last_exc"):
+                exc = sys.last_exc
             else:
-                cur_type = None
-            if hasattr(sys, "last_value"):
-                cur_value = sys.last_value
-            else:
-                cur_value = None
-            if hasattr(sys, "last_traceback"):
-                cur_traceback = sys.last_traceback
-                cur_trace_err = str(traceback.format_tb(cur_traceback))
-            else:
-                cur_traceback = None
-                cur_trace_err = ""
+                exc = None
+                
+            cur_type = type(exc) if exc is not None else None
+            cur_value = exc
+            cur_traceback = exc.__traceback__ if exc is not None else None
+            cur_trace_err = str(traceback.format_tb(cur_traceback)) if cur_traceback else ""
 
-            # remove these attributes from sys
-            # see: https://docs.python.org/3/library/sys.html#sys.last_traceback
-            if hasattr(sys, "last_value"):
-                del sys.last_value
-
-            if hasattr(sys, "last_type"):
-                del sys.last_type
-
-            if hasattr(sys, "last_traceback"):
-                del sys.last_traceback
+            if hasattr(sys, "last_exc"):
+                del sys.last_exc
             if cur_traceback is None and cur_value is None and cur_type is None:
-                # just skip this error message
                 return
 
             self.QGIS_Python_Errors.append(cur_trace_err)
