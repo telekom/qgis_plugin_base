@@ -366,6 +366,9 @@ class Plugin(ModuleBase, QObject):
         # logged msg_text via QgsApplication.logMessage contains a text to identify a Python error
         error_text = QgsApplication.translate("Python", "Python error").lower()  # DE: Python-Fehler, ...
         if msg_text and tag.lower() == error_text:
+            plugin_folder_name = os.path.basename(self.plugin_dir)
+            if plugin_folder_name not in msg_text:
+                return False
 
             if hasattr(sys, "last_type"):
                 cur_type = sys.last_type
