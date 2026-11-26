@@ -82,6 +82,7 @@ class Plugin(ModuleBase, QObject):
 
         # may contain collected Python errors caught by the QGIS ui
         self.QGIS_Python_Errors = []
+        self.QGIS_Python_Full_Error_Messages = []
 
         # update action to update the plugin via the UI
         self.update_action = None
@@ -357,46 +358,35 @@ class Plugin(ModuleBase, QObject):
             :param level: priority level
         """
         try:
-            msg_text = msg_text.encode('utf-8').decode('utf-8').lower()
+            msg_text = msg_text.encode('utf-8').decode('utf-8')
         except UnicodeEncodeError:
             # if the message text cannot be encoded/decoded, it is not processable, just skip it
             return False
 
         # logged msg_text via QgsApplication.logMessage contains a text to identify a Python error
         error_text = QgsApplication.translate("Python", "Python error").lower()  # DE: Python-Fehler, ...
-        if msg_text.startswith(error_text):
+        if msg_text and tag.lower() == error_text:
+            plugin_folder_name = os.path.basename(self.plugin_dir)
+            if plugin_folder_name not in msg_text:
+                return False
 
-            if hasattr(sys, "last_type"):
-                cur_type = sys.last_type
+            if hasattr(sys, "last_exc"):
+                exc = sys.last_exc
             else:
-                cur_type = None
-            if hasattr(sys, "last_value"):
-                cur_value = sys.last_value
-            else:
-                cur_value = None
-            if hasattr(sys, "last_traceback"):
-                cur_traceback = sys.last_traceback
-                cur_trace_err = str(traceback.format_tb(cur_traceback))
-            else:
-                cur_traceback = None
-                cur_trace_err = ""
+                exc = None
+                
+            cur_type = type(exc) if exc is not None else None
+            cur_value = exc
+            cur_traceback = exc.__traceback__ if exc is not None else None
+            cur_trace_err = str(traceback.format_tb(cur_traceback)) if cur_traceback else ""
 
-            # remove these attributes from sys
-            # see: https://docs.python.org/3/library/sys.html#sys.last_traceback
-            if hasattr(sys, "last_value"):
-                del sys.last_value
-
-            if hasattr(sys, "last_type"):
-                del sys.last_type
-
-            if hasattr(sys, "last_traceback"):
-                del sys.last_traceback
+            if hasattr(sys, "last_exc"):
+                del sys.last_exc
             if cur_traceback is None and cur_value is None and cur_type is None:
-                # just skip this error message
-                return
+                return False
 
             self.QGIS_Python_Errors.append(cur_trace_err)
-            self.python_error_checkcache()
+            self.QGIS_Python_Full_Error_Messages.append(msg_text)
 
             self.log(cur_trace_err, level=self.CRITICAL)
 
@@ -405,52 +395,6 @@ class Plugin(ModuleBase, QObject):
             return True
 
         return False
-
-    def python_error_checkcache(self):
-        """ Checks how many errors are logged and informs user """
-
-        from qgis.utils import iface
-
-        count = len(self.QGIS_Python_Errors)
-        if (count % 3) == 0 and count > 0:
-            QMessageBox.information(
-                iface.mainWindow(),
-                'Python-Fehler Information',
-                'Es liegt mindestens ein Python-Fehlerbericht vor.\n'
-                f'Berichte: {count}\n\n'
-                'Diese können per E-Mail an ein Postfach zur Fehlerbehebung bei Störungen gesendet werden.',
-                QMessageBox.Ok,
-                QMessageBox.NoButton
-            )
-
-    def python_errors_to_string(self, as_qgs_error: bool = False) -> Union[str, QgsError]:
-        """ Joins all logged python errors to a string or creates a QgsError object.
-
-            :param as_qgs_error: returns joined string or QgsError object
-        """
-        if as_qgs_error:
-            errors = QgsError("Bitte markieren, kopieren und der Feedback-E-mail anfügen.\n"
-                              "'Details >>' öffnen!",
-                              f"{self.plugin_name}-Fehlerberichte ('Details >>' öffnen!)")
-            # zeigen mit QgsErrorDialog.show(errors, None)
-        else:
-            errors = ""
-        if self.QGIS_Python_Errors:
-            if as_qgs_error:
-                errors.append("", "****************************************************")
-                errors.append("", f"-------- Beginn Fehlerberichte [{len(self.QGIS_Python_Errors)}] --------")
-                for i, err in enumerate(self.QGIS_Python_Errors):
-                    errors.append(err, f"~~~~ Fehler-Nummer {i + 1}")
-                errors.append("", "--------- Ende Fehlerberichte ---------")
-                errors.append("", "****************************************************")
-            else:
-                errors += "****************************************************\n"
-                errors += "-------- Beginn Fehlerberichte --------\n"
-                for i, err in enumerate(self.QGIS_Python_Errors):
-                    errors += f"~~~~ Fehler-Nummer {i + 1}\n{err}\n"
-                errors += "--------- Ende Fehlerberichte ---------\n"
-                errors += "****************************************************\n\n"
-        return errors
 
     @staticmethod
     def is_qgis_plugin():
