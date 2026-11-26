@@ -383,7 +383,7 @@ class Plugin(ModuleBase, QObject):
             if hasattr(sys, "last_exc"):
                 del sys.last_exc
             if cur_traceback is None and cur_value is None and cur_type is None:
-                return
+                return False
 
             self.QGIS_Python_Errors.append(cur_trace_err)
             self.QGIS_Python_Full_Error_Messages.append(msg_text)
