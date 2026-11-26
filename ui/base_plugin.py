@@ -387,7 +387,6 @@ class Plugin(ModuleBase, QObject):
 
             self.QGIS_Python_Errors.append(cur_trace_err)
             self.QGIS_Python_Full_Error_Messages.append(msg_text)
-            self.python_error_checkcache()
 
             self.log(cur_trace_err, level=self.CRITICAL)
 
@@ -396,52 +395,6 @@ class Plugin(ModuleBase, QObject):
             return True
 
         return False
-
-    def python_error_checkcache(self):
-        """ Checks how many errors are logged and informs user """
-
-        from qgis.utils import iface
-
-        count = len(self.QGIS_Python_Errors)
-        if (count % 3) == 0 and count > 0:
-            QMessageBox.information(
-                iface.mainWindow(),
-                'Python-Fehler Information',
-                'Es liegt mindestens ein Python-Fehlerbericht vor.\n'
-                f'Berichte: {count}\n\n'
-                'Diese können per E-Mail an ein Postfach zur Fehlerbehebung bei Störungen gesendet werden.',
-                QMessageBox.Ok,
-                QMessageBox.NoButton
-            )
-
-    def python_errors_to_string(self, as_qgs_error: bool = False) -> Union[str, QgsError]:
-        """ Joins all logged python errors to a string or creates a QgsError object.
-
-            :param as_qgs_error: returns joined string or QgsError object
-        """
-        if as_qgs_error:
-            errors = QgsError("Bitte markieren, kopieren und der Feedback-E-mail anfügen.\n"
-                              "'Details >>' öffnen!",
-                              f"{self.plugin_name}-Fehlerberichte ('Details >>' öffnen!)")
-            # zeigen mit QgsErrorDialog.show(errors, None)
-        else:
-            errors = ""
-        if self.QGIS_Python_Errors:
-            if as_qgs_error:
-                errors.append("", "****************************************************")
-                errors.append("", f"-------- Beginn Fehlerberichte [{len(self.QGIS_Python_Errors)}] --------")
-                for i, err in enumerate(self.QGIS_Python_Errors):
-                    errors.append(err, f"~~~~ Fehler-Nummer {i + 1}")
-                errors.append("", "--------- Ende Fehlerberichte ---------")
-                errors.append("", "****************************************************")
-            else:
-                errors += "****************************************************\n"
-                errors += "-------- Beginn Fehlerberichte --------\n"
-                for i, err in enumerate(self.QGIS_Python_Errors):
-                    errors += f"~~~~ Fehler-Nummer {i + 1}\n{err}\n"
-                errors += "--------- Ende Fehlerberichte ---------\n"
-                errors += "****************************************************\n\n"
-        return errors
 
     @staticmethod
     def is_qgis_plugin():
