@@ -6,9 +6,10 @@
 import re
 
 from dataclasses import dataclass
-from pkg_resources import packaging
 from typing import Optional
 from xml.sax.saxutils import escape
+
+from .version import Version
 
 
 FILE_ENDINGS_PY_TO_UI = (".py", ".cp312-win_amd64.pyd")
@@ -77,11 +78,11 @@ DEFAULT_ALGORITHM_NAMES = [
 class VersionInfo:
     """ Version data of a plugin entry in plugins.xml. """
 
-    version: packaging.version.Version
+    version: Version
     version_str: str
     commit: str
-    qgis_minimum_version: Optional[packaging.version.Version]
-    qgis_maximum_version: Optional[packaging.version.Version]
+    qgis_minimum_version: Optional[Version]
+    qgis_maximum_version: Optional[Version]
 
 
 class VersionError(Exception):

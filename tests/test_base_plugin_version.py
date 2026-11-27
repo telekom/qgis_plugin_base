@@ -6,8 +6,8 @@
 import logging
 import pytest
 
+from dataclasses import FrozenInstanceError
 from pathlib import Path
-from pkg_resources import packaging
 from qgis.PyQt.QtNetwork import QNetworkReply
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -16,6 +16,7 @@ from ..constants import VersionError, VersionInfo
 from ..ui import base_class, base_plugin
 from ..ui.base_class import ModuleBase
 from ..ui.base_plugin import Plugin
+from ..version import Version
 
 TEST_XML = b"""<plugins>
   <pyqgis_plugin version="2.1.2" name="Plugin Template">
@@ -43,6 +44,54 @@ TEST_XML = b"""<plugins>
 </plugins>"""
 
 XML_URL = "https://test.url.de/plugins.xml"
+
+
+@pytest.mark.parametrize(("value", "expected"), [
+    ("1", "1"), ("1.1", "1.1"), ("1.1.1", "1.1.1"),
+    ("v1", "1"), ("v1.1", "1.1"), ("v1.1.1", "1.1.1"),
+    ("v01.002.003", "1.2.3"), ("1.0.0", "1.0.0"),
+])
+def test_version_formats(value: str, expected: str) -> None:
+    """ Normalize each supported version format.
+
+        :param value: input version string
+        :param expected: normalized version string
+    """
+    assert str(Version(value)) == expected
+
+
+@pytest.mark.parametrize("value", ["", " 1", "1 ", "V1", "1..2", "1.2.3.4", "1.0rc1", "-1", "\u0661", "v"])
+def test_version_rejects_invalid_strings(value: str) -> None:
+    """ Reject strings outside the supported numeric version format.
+
+        :param value: invalid version string
+    """
+    with pytest.raises(ValueError):
+        Version(value)
+
+
+@pytest.mark.parametrize("value", [None, 1, (1, 2)])
+def test_version_rejects_non_strings(value: object) -> None:
+    """ Reject non-string version inputs.
+
+        :param value: invalid version input
+    """
+    with pytest.raises(TypeError):
+        Version(value)
+
+
+def test_version_comparison_and_immutability() -> None:
+    """ Compare padded numeric components and keep equal versions hash-compatible. """
+    version = Version("v1")
+    assert version == Version("1.0") == Version("1.0.0")
+    assert len({version, Version("1.0"), Version("1.0.0")}) == 1
+    assert Version("1.9") < Version("1.10")
+    assert Version("1.2.1") > Version("1.2")
+    assert version != "-1"
+    with pytest.raises(TypeError):
+        version < "1"
+    with pytest.raises(FrozenInstanceError):
+        version._parts = (2, 0, 0)
 
 
 @pytest.fixture()
@@ -89,8 +138,8 @@ def test_version_error_is_plain_exception() -> None:
 
 def test_get_version_from_xml() -> None:
     """ Find versions by plugin name. """
-    assert Plugin.get_version_from_xml(TEST_XML, "Plugin Template") == (packaging.version.parse("2.1.2"), "")
-    assert Plugin.get_version_from_xml(TEST_XML, "Plugin 1") == (packaging.version.parse("1.0.0"), "")
+    assert Plugin.get_version_from_xml(TEST_XML, "Plugin Template") == (Version("2.1.2"), "")
+    assert Plugin.get_version_from_xml(TEST_XML, "Plugin 1") == (Version("1.0.0"), "")
 
     version, error = Plugin.get_version_from_xml(TEST_XML, "abcdef")
     assert version is None and error.endswith(" not found on xml_content")
@@ -98,12 +147,72 @@ def test_get_version_from_xml() -> None:
 
 def test_get_version_info_from_xml() -> None:
     """ Find version info by zip file name. """
-    expected = VersionInfo(packaging.version.parse("2.1.2"), "2.1.2", "12852478",
-                           packaging.version.parse("3.34.6"), packaging.version.parse("3.40.99"))
+    expected = VersionInfo(Version("2.1.2"), "2.1.2", "12852478", Version("3.34.6"), Version("3.40.99"))
     assert Plugin.get_version_info_from_xml(TEST_XML, "plugin_template.zip") == expected
 
     error = Plugin.get_version_info_from_xml(TEST_XML, "error.zip")
     assert isinstance(error, VersionError) and error.error.endswith(" not found")
+
+
+def test_xml_version_formats_and_empty_qgis_limits() -> None:
+    """ Parse supported XML formats and retain empty QGIS limits. """
+    content = TEST_XML.replace(b'version="2.1.2"', b'version="v01.02"')
+    content = content.replace(b"<qgis_minimum_version>3.34.6</qgis_minimum_version>",
+                              b"<qgis_minimum_version>3.34</qgis_minimum_version>")
+    content = content.replace(b"<qgis_maximum_version>3.40.99</qgis_maximum_version>",
+                              b"<qgis_maximum_version></qgis_maximum_version>")
+
+    assert Plugin.get_version_from_xml(content, "Plugin Template") == (Version("1.2"), "")
+    result = Plugin.get_version_info_from_xml(content, "plugin_template.zip")
+    assert isinstance(result, VersionInfo)
+    assert result.version == Version("1.2")
+    assert result.version_str == "1.2"
+    assert result.qgis_minimum_version == Version("3.34")
+    assert isinstance(result.qgis_maximum_version, str)
+    assert not result.qgis_maximum_version
+
+
+def test_xml_only_parses_matching_entry() -> None:
+    """ Ignore malformed versions in unrelated XML entries. """
+    content = TEST_XML.replace(b'version="2.1.2"', b'version="invalid"')
+    content = content.replace(b"<qgis_minimum_version>3.34.6</qgis_minimum_version>",
+                              b"<qgis_minimum_version>invalid</qgis_minimum_version>", 1)
+    assert Plugin.get_version_from_xml(content, "Plugin 1") == (Version("1.0.0"), "")
+    assert isinstance(Plugin.get_version_info_from_xml(content, "plugin_one.zip"), VersionInfo)
+
+
+@pytest.mark.parametrize("field", ["version", "qgis_minimum_version", "qgis_maximum_version"])
+def test_xml_rejects_invalid_matching_versions(field: str) -> None:
+    """ Propagate invalid version errors for the matching XML entry.
+
+        :param field: XML field containing the invalid version
+    """
+    replacements = {
+        "version": (b'version="2.1.2"', b'version="1.2rc1"'),
+        "qgis_minimum_version": (b"<qgis_minimum_version>3.34.6</qgis_minimum_version>",
+                                 b"<qgis_minimum_version>1.2rc1</qgis_minimum_version>"),
+        "qgis_maximum_version": (b"<qgis_maximum_version>3.40.99</qgis_maximum_version>",
+                                 b"<qgis_maximum_version>1.2rc1</qgis_maximum_version>"),
+    }
+    old, new = replacements[field]
+    content = TEST_XML.replace(old, new, 1)
+    with pytest.raises(ValueError):
+        Plugin.get_version_info_from_xml(content, "plugin_template.zip")
+    if field == "version":
+        with pytest.raises(ValueError):
+            Plugin.get_version_from_xml(content, "Plugin Template")
+
+
+@pytest.mark.parametrize("value", ["1", "v1.2", "1.2.3"])
+def test_get_local_version_formats(tmp_path: Path, value: str) -> None:
+    """ Read supported plugin versions from metadata.
+
+        :param tmp_path: pytest temporary directory fixture
+        :param value: version value in metadata
+    """
+    metadata_path = tmp_path / "metadata.txt"
+    metadata_path.write_text(f"[general]\nversion={value}\n", encoding="utf-8")
+    assert Plugin.get_local_version(str(metadata_path)) == Version(value)
 
 
 def test_get_local_metadata_values(tmp_path: Path) -> None:
@@ -115,7 +224,7 @@ def test_get_local_metadata_values(tmp_path: Path) -> None:
     metadata_path.write_text("[general]\nversion=1.2.3\nzipFilename=plugin.zip\npluginXmlUrl=https://x\n",
                              encoding="utf-8")
 
-    assert Plugin.get_local_version(str(metadata_path)) == packaging.version.parse("1.2.3")
+    assert Plugin.get_local_version(str(metadata_path)) == Version("1.2.3")
     assert Plugin.get_local_zipname(str(metadata_path)) == "plugin.zip"
     assert Plugin.get_local_xml_url(str(metadata_path)) == "https://x"
     with pytest.raises(KeyError):

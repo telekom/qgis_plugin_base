@@ -22,7 +22,6 @@ else:
     win32api = None
 
 from pathlib import Path
-from pkg_resources import packaging
 from qgis.core import Qgis, QgsApplication, QgsSettings
 from qgis.gui import QgsRubberBand, QgsVertexMarker
 from qgis.PyQt.QtCore import pyqtSignal, QObject, Qt, QTimer
@@ -37,6 +36,7 @@ from .functions import get_expected_plugin_folder_name, get_expected_plugin_path
 from ..constants import UPDATE_HINT_COMPILED, VersionError, VersionInfo
 from ..qgis.qgis_network_requests import get
 from ..qgis.qgis_requests_response import QgisResponse
+from ..version import Version
 
 
 class Plugin(ModuleBase, QObject):
@@ -414,7 +414,7 @@ class Plugin(ModuleBase, QObject):
         return is_installed_in_qgis_plugin_folder()
 
     def get_repository_version_name(self, xml_url: str, plugin_name: str,
-                                    auth_cfg: str = "") -> Tuple[Optional[packaging.version.Version], str]:
+                                    auth_cfg: str = "") -> Tuple[Optional[Version], str]:
         """ Read plugins.xml and return the version and an error text for the given plugin name.
 
             :param xml_url: web url of plugins.xml
@@ -473,7 +473,7 @@ class Plugin(ModuleBase, QObject):
 
     @staticmethod
     def get_version_from_xml(xml_content: bytes,
-                             plugin_name: str) -> Tuple[Optional[packaging.version.Version], str]:
+                             plugin_name: str) -> Tuple[Optional[Version], str]:
         """ Return the version of the given plugin name from the plugins.xml content and an error text.
 
             :param xml_content: content of plugins.xml
@@ -486,7 +486,7 @@ class Plugin(ModuleBase, QObject):
         for i in range(plugin_nodes.size()):
             element = plugin_nodes.item(i).toElement()
             if element.attribute("name") == plugin_name:
-                return packaging.version.parse(element.attribute("version")), ""
+                return Version(element.attribute("version")), ""
 
         return None, f"plugin '{plugin_name}' not found on xml_content"
 
@@ -508,12 +508,12 @@ class Plugin(ModuleBase, QObject):
 
             qgis_minimum_version = element.firstChildElement("qgis_minimum_version").text().strip()
             if qgis_minimum_version:
-                qgis_minimum_version = packaging.version.parse(qgis_minimum_version)
+                qgis_minimum_version = Version(qgis_minimum_version)
             qgis_maximum_version = element.firstChildElement("qgis_maximum_version").text().strip()
             if qgis_maximum_version:
-                qgis_maximum_version = packaging.version.parse(qgis_maximum_version)
+                qgis_maximum_version = Version(qgis_maximum_version)
 
-            version_obj = packaging.version.parse(element.attribute("version"))
+            version_obj = Version(element.attribute("version"))
             commit = element.firstChildElement("commit").text().strip()
             return VersionInfo(version_obj, str(version_obj), commit, qgis_minimum_version, qgis_maximum_version)
 
@@ -531,12 +531,12 @@ class Plugin(ModuleBase, QObject):
         return config['general'][key]
 
     @staticmethod
-    def get_local_version(metadata_path: str) -> packaging.version.Version:
+    def get_local_version(metadata_path: str) -> Version:
         """ Return the local plugin version from metadata.txt.
 
             :param metadata_path: path to metadata.txt
         """
-        return packaging.version.parse(Plugin.get_meta_value(metadata_path, 'version'))
+        return Version(Plugin.get_meta_value(metadata_path, 'version'))
 
     @staticmethod
     def get_local_zipname(metadata_path: str) -> str:

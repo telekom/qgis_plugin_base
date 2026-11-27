@@ -14,7 +14,6 @@ import sys
 import time
 
 from pathlib import Path
-from pkg_resources import packaging
 from pyplugin_installer import installer as pyplugin_installer
 from qgis.core import Qgis, QgsApplication, QgsLocatorFilter, QgsMapLayer, QgsNetworkAccessManager, QgsSettings
 from qgis.gui import QgisInterface, QgsFileWidget
@@ -39,6 +38,7 @@ from .widgets import apply_widget_options, is_widget_compatible
 from ..constants import ACCESSIBILITY_DEFAULT_COLOR, FILE_ENDINGS_PY_TO_UI
 from ..qgis.functions import get_qgis_setting
 from ..qgis.qgis_env import activate_processing_plugin
+from ..version import Version
 
 
 class ModuleBase(Logging):
@@ -655,7 +655,7 @@ class ModuleBase(Logging):
 
         # extract the version number/syntax from the QGIS
         if qgis_version_int_str := search(r"\d+[.]\d+[.]\d+", Qgis.QGIS_VERSION).group(0):
-            qgis_version_int = packaging.version.parse(qgis_version_int_str)
+            qgis_version_int = Version(qgis_version_int_str)
         else:
             qgis_version_int = None
 
