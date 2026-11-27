@@ -3,33 +3,40 @@
 # SPDX-License-Identifier: GPL-3.0-only
 
 import configparser
-import traceback
+import logging
 
 from pkg_resources import packaging
 from typing import Union, Tuple, Optional
 
+from qgis.core import QgsApplication
 from qgis.PyQt.QtXml import QDomDocument
 from qgis.PyQt.QtNetwork import QNetworkReply
 
 from . import constants
 from .qgis.qgis_network_requests import get
 
+logger = logging.getLogger(__name__)
+
 
 class VersionPlugin:
 
     @classmethod
-    def get_repository_version_name(cls, xml_url: str, plugin_name: str) -> tuple:
+    def get_repository_version_name(cls, xml_url: str, plugin_name: str,
+                                    auth_cfg: str = "") -> tuple:
         """ Reads plugins.xml content and returns version number from given plugin.
 
             :param xml_url: web url
             :param plugin_name: name of plugin
+            :param auth_cfg: optional QGIS authentication configuration ID
             :returns: version string/None and error text
         """
 
+        cls._validate_auth_cfg(auth_cfg)
+
         # read the XML content from the url
-        response = get(xml_url)
+        response = get(xml_url, authCfg=auth_cfg)
         if response.error() != QNetworkReply.NoError or response.status_code != 200:
-            return None, response.errorString()
+            return None, cls._network_error(response)
         else:
             return cls.get_version_from_xml(response.content, plugin_name)
 
@@ -54,22 +61,40 @@ class VersionPlugin:
         return None, f"plugin '{plugin_name}' not found on xml_content"
 
     @classmethod
-    def get_repository_version_zipname(cls, xml_url: str, zip_file: str) -> Union[constants.VersionInfo,
-                                                                                  constants.VersionError]:
+    def get_repository_version_zipname(cls, xml_url: str, zip_file: str,
+                                       auth_cfg: str = "") -> Union[constants.VersionInfo,
+                                                                     constants.VersionError]:
         """ Reads plugins.xml content and returns version number and error string from given zip file name
 
             :param xml_url: web url
             :param zip_file: zip file name (e.g. "plugin.zip")
+            :param auth_cfg: optional QGIS authentication configuration ID
             :returns: VersionInfo or VersionError dataclass
         """
 
+        cls._validate_auth_cfg(auth_cfg)
+
         # read the XML content from the url
-        response = get(xml_url)
+        response = get(xml_url, authCfg=auth_cfg)
         if response.error() != QNetworkReply.NoError or response.status_code != 200:
-            err = f"Bei der Abfrage ist ein Fehler aufgetreten:\n\n{traceback.format_exc()}"
+            err = cls._network_error(response)
             return constants.VersionError(err)
         else:
             return cls.get_version_info_from_xml(response.content, zip_file)
+
+    @classmethod
+    def _validate_auth_cfg(cls, auth_cfg: str) -> None:
+        if auth_cfg and auth_cfg not in QgsApplication.authManager().configIds():
+            error = (f"Die QGIS-Authentifizierungskonfiguration '{auth_cfg}' ist nicht vorhanden. "
+                     "Bitte importiere oder erstelle die Authentifizierungskonfiguration in QGIS.")
+            logger.warning(error)
+            raise constants.VersionError(error)
+
+    @staticmethod
+    def _network_error(response) -> str:
+        return ("Bei der Abfrage ist ein Fehler aufgetreten.\n"
+                f"HTTP-Status: {response.status_code}\n"
+                f"Fehler: {response.errorString()}")
 
     @classmethod
     def get_version_info_from_xml(cls, xml_content: bytes, zip_file_name: str) -> Union[constants.VersionInfo,
@@ -129,6 +154,14 @@ class VersionPlugin:
         """
 
         return cls.get_meta_value(metadata_path, 'pluginXmlUrl')
+
+    @classmethod
+    def get_local_repository_authcfg(cls, metadata_path: str) -> str:
+        """Returns the optional repository authcfg ID from metadata.txt."""
+        try:
+            return cls.get_meta_value(metadata_path, "pluginRepositoryAuthcfg").strip()
+        except KeyError:
+            return ""
 
     @staticmethod
     def get_version_int(version: str) -> int:

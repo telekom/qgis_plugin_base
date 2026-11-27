@@ -77,8 +77,11 @@ class VersionInfo:
 
 
 @dataclass
-class VersionError:
+class VersionError(Exception):
     error: str
+
+    def __post_init__(self):
+        super().__init__(self.error)
 
 
 # pyqt
