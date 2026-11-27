@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # SPDX-FileCopyrightText: 2025 Deutsche Telekom Technik GmbH <f.vonstudsinske@telekom.de>
 # SPDX-License-Identifier: GPL-3.0-only
+""" Base classes for plugin modules and UI modules. """
 
 import configparser
 import contextlib
@@ -20,8 +21,8 @@ from qgis.gui import QgisInterface, QgsFileWidget
 from qgis.PyQt import uic
 from qgis.PyQt.QtCore import (pyqtBoundSignal, pyqtSignal, QCoreApplication, QMetaObject, QObject, QTranslator,
                               QUrl)
-from qgis.PyQt.QtGui import QCursor, QDesktopServices, QIcon
-from qgis.PyQt.QtWidgets import (QAction, QApplication, QCheckBox, QComboBox, QFrame, QGridLayout, QLabel,
+from qgis.PyQt.QtGui import QCursor, QDesktopServices, QIcon, QAction
+from qgis.PyQt.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame, QGridLayout, QLabel,
                                  QLineEdit, QListView, QListWidget, QMainWindow, QMenu, QMessageBox,
                                  QPushButton, QRadioButton, QSpinBox, QTableView, QTableWidget, QTextBrowser,
                                  QTextEdit, QToolBar, QToolButton, QToolTip, QTreeView, QTreeWidget, QWidget)
@@ -85,6 +86,10 @@ class ModuleBase(Logging):
     uiModuleAdded = pyqtSignal(object, name="uiModuleAdded")
 
     def __init__(self, **kwargs: dict):
+        """ Initialize the module, its logger and translators.
+
+            :param kwargs: module arguments, see class description
+        """
         # check mro if highest class is a module base (ui or not)
         # this check is important to keep parent and child relationships valid
 
@@ -98,7 +103,7 @@ class ModuleBase(Logging):
         self._connections: List[Tuple[Union[pyqtBoundSignal, pyqtSignal],
                                       Callable, QMetaObject.Connection,
                                       Connection]] = []
-        self._parent: Optional[Union[UIMB, MB]] = kwargs.get("parent_module", None)
+        self._parent: Optional[Union[UIMB, MB]] = kwargs.get("parent_module")
         self._plugin: PLUGIN = kwargs['plugin']
         self.module_name: str = kwargs["name"]
         self.logging_level_debug: bool = kwargs.get('logging_level_debug', False)
@@ -211,7 +216,9 @@ class ModuleBase(Logging):
 
                 use_class_names = (UiModuleBase.__name__, use_class.__name__,
                                    ModuleBase.__name__, self.__class__.__name__)
-                new_mro = (use_class.__name__,) + tuple(x.__name__ for x in mro if x.__name__ not in use_class_names)
+                # prepending to a tuple reads clearer than unpacking a generator
+                new_mro = ((use_class.__name__,)  # noqa: RUF005
+                           + tuple(x.__name__ for x in mro if x.__name__ not in use_class_names))
                 origin_mro = tuple(x.__name__ for x in mro if x.__name__ != self.__class__.__name__)
                 raise TypeError("\noriginal inheritance:\n\t"
                                 f"{self.__class__.__name__}({', '.join(origin_mro)})\n\n"
@@ -239,11 +246,12 @@ class ModuleBase(Logging):
 
     @property
     def iface(self) -> Optional[QgisInterface]:
+        """ Return the module's own QGIS interface, otherwise the one from qgis.utils. """
         from qgis.utils import iface
 
-        _iface = getattr(self, "_iface", None)
-        if isinstance(_iface, QgisInterface):
-            return _iface
+        own_iface = getattr(self, "_iface", None)
+        if isinstance(own_iface, QgisInterface):
+            return own_iface
 
         return iface
 
@@ -260,6 +268,7 @@ class ModuleBase(Logging):
 
     @property
     def unloaded(self) -> bool:
+        """ Return True, if the module has been unloaded. """
         return self.__unloaded
 
     @unloaded.setter
@@ -293,10 +302,7 @@ class ModuleBase(Logging):
         """
         from qgis.utils import iface
 
-        if iface is not None:
-            widget = iface.mainWindow()
-        else:
-            widget = None
+        widget = iface.mainWindow() if iface is not None else None
 
         action = QAction(icon, name, None)
         if callback_action is not None:
@@ -345,10 +351,7 @@ class ModuleBase(Logging):
         """
         from qgis.utils import iface
 
-        if iface is not None:
-            widget = iface.mainWindow()
-        else:
-            widget = None
+        widget = iface.mainWindow() if iface is not None else None
 
         tool_button: QToolButton = QToolButton(widget)
         tool_button.setAutoRaise(True)
@@ -455,7 +458,7 @@ class ModuleBase(Logging):
 
         return path
 
-    def install_translator(self, file: Union[str, Path], *, context: str = None) -> bool:
+    def install_translator(self, file: Union[str, Path], *, context: Optional[str] = None) -> bool:
         """ Install translation file (.qm).
 
             :param file: path to the QM file
@@ -603,9 +606,8 @@ class ModuleBase(Logging):
 
             For further kwargs see description in Connection class.
 
-            Hint:
-                Do not save on `self` or in a similar way. On module unload let the ModuleBase disconnect all connection.
-                When you have saved a returned connect-value on `self`, then the connection may stay alive.
+            Hint: Do not save the returned value on `self` or in a similar way. On module unload, let the ModuleBase
+            disconnect all connections. A returned connect-value saved on `self` may keep the connection alive.
 
             :param obj: QObject
             :param callable_: function/method
@@ -636,7 +638,8 @@ class ModuleBase(Logging):
         opened = QDesktopServices.openUrl(QUrl.fromLocalFile(path))
         self.log(f"File/Path '{path}' {opened=}", level=self.INFO)
 
-    def set_ui_version_info(self, label: Optional[QLabel] = None, show_new_version_info: bool = True,
+    # several early exits for the distinct version states keep this flow readable
+    def set_ui_version_info(self, label: Optional[QLabel] = None, show_new_version_info: bool = True,  # noqa: PLR0911
                             show_network_error: bool = True):
         """ Reads the version from the repo and the local installation
             and informs the user about possible updates.
@@ -821,6 +824,7 @@ class ModuleBase(Logging):
         return self.get_main_plugin(next_plugin=True)
 
     def get_parent(self):
+        """ Return the parent module or None. """
         return self._parent
 
     def get_toolbar(self, toolbar_name: str, toolbar_object_name: str, main_window: QMainWindow) -> QToolBar:
@@ -834,15 +838,15 @@ class ModuleBase(Logging):
 
         toolbar = None
         # find alls toolbar objects in given main window
-        _menus_objects = main_window.findChildren(QToolBar)
-        _menus = [x.objectName() for x in _menus_objects]
+        toolbars = main_window.findChildren(QToolBar)
+        toolbar_names = [x.objectName() for x in toolbars]
 
-        if toolbar_object_name not in _menus:
+        if toolbar_object_name not in toolbar_names:
             # no toolbar found with given object name, create new one
             toolbar = main_window.addToolBar(toolbar_name)
             toolbar.setObjectName(toolbar_object_name)
         else:
-            for menu in _menus_objects:
+            for menu in toolbars:
                 if menu.objectName() == toolbar_object_name:
                     # toolbar found
                     toolbar = menu
@@ -952,7 +956,7 @@ class ModuleBase(Logging):
         else:
             path = key
 
-        current_value = self.get_option(key,overwrite_module_key=overwrite_module_key)
+        current_value = self.get_option(key, overwrite_module_key=overwrite_module_key)
 
         if value is None:
             # remove value from profile
@@ -967,10 +971,7 @@ class ModuleBase(Logging):
                     plugin.profileOptionUpdated.emit(path, key, current_value, None)
             return
 
-        if isinstance(value, (list, dict)):
-            value = json.dumps(value)
-        else:
-            value = str(value)
+        value = json.dumps(value) if isinstance(value, (list, dict)) else str(value)
 
         if current_value != value:
             # log only on difference
@@ -985,6 +986,10 @@ class ModuleBase(Logging):
     # noinspection PyPep8Naming
     @staticmethod
     def getThemeIcon(icon: str):  # pylint: disable=invalid-name
+        """ Return the QGIS theme icon with the given name (".svg" is appended, if missing).
+
+            :param icon: icon name
+        """
         if not icon.endswith(".svg"):
             icon += ".svg"
         return QgsApplication.getThemeIcon(icon)
@@ -992,11 +997,22 @@ class ModuleBase(Logging):
     # noinspection PyPep8Naming
     @staticmethod
     def getThemePixmap(icon: str, *args, **kwargs):  # pylint: disable=invalid-name
+        """ Return the QGIS theme pixmap with the given name (".svg" is appended, if missing).
+
+            :param icon: icon name
+            :param args: positional arguments for QgsApplication.getThemePixmap
+            :param kwargs: keyword arguments for QgsApplication.getThemePixmap
+        """
         if not icon.endswith(".svg"):
             icon += ".svg"
         return QgsApplication.getThemePixmap(icon, *args, **kwargs)
 
     def __setattr__(self, key, value):
+        """ Set an attribute; rejects disallowed value types and the reserved name `iface`.
+
+            :param key: attribute name
+            :param value: attribute value
+        """
         # some validity checks
         try:
             attr = super(ModuleBase, self).__getattribute__("_unallowed_attribute_types")
@@ -1016,6 +1032,10 @@ class ModuleBase(Logging):
         super().__setattr__(key, value)
 
     def __contains__(self, item: Union[str, MB]):
+        """ Return True, if a sub module with the given key or the given module object exists.
+
+            :param item: module key or module object
+        """
 
         # works, if item is str
         if item in self._modules:
@@ -1024,17 +1044,23 @@ class ModuleBase(Logging):
         return item in self._modules.values()
 
     def __iter__(self):
+        """ Iterate over the (key, module) pairs of the sub modules. """
 
         yield from self._modules.items()
 
     def __getitem__(self, item):
+        """ Return the sub module with the given key.
+
+            :param item: module key
+        """
         try:
             return self._modules[item]
         except KeyError:
             raise KeyError(f"module '{self.module_name}' has no sub module '{item}'")
 
     def __repr__(self):
-        name = self.module_name if self.module_name else "< no name >"
+        """ Return a representation with module name and parent module name. """
+        name = self.module_name or "< no name >"
         parent = self.get_parent()
         parent = "None" if parent is None else parent.module_name
 
@@ -1061,6 +1087,10 @@ class UiModuleBase(ModuleBase):
     No = QMessageBox.No
 
     def __init__(self, **kwargs):
+        """ Initialize the UI module and set up the accessibility handling.
+
+            :param kwargs: module arguments, see ModuleBase
+        """
         # will be set via self.setupUI during ui dings bums wuahhahaha
         self.MainWidget: Optional[QWidget] = None
 
@@ -1164,7 +1194,7 @@ class UiModuleBase(ModuleBase):
 
                 # Apply additional frame styling for certain widget types when enhanced borders are enabled
                 # This is needed because some widgets can't have bigger borders by default
-                if (widget_type in (QListWidget, QTreeWidget, QListView, QTreeView, QTableView, QTextBrowser, QTextEdit)
+                if (widget_type in {QListWidget, QTreeWidget, QListView, QTreeView, QTableView, QTextBrowser, QTextEdit}
                         and enhanced_borders):
                     widget.setFrameShape(QListWidget.WinPanel)
 
@@ -1254,10 +1284,9 @@ class UiModuleBase(ModuleBase):
         if delete_replaced_widget:
             plugin_widget.deleteLater()
 
-        if replaced_widget_item is not None:
-            if replaced_widget := replaced_widget_item.widget():
-                replaced_widget.setParent(None)
-                plugin_layout.removeWidget(replaced_widget)
+        if replaced_widget_item is not None and (replaced_widget := replaced_widget_item.widget()):
+            replaced_widget.setParent(None)
+            plugin_layout.removeWidget(replaced_widget)
 
         # resets object name to origin "MainWidget" from ui becomes e.g. "Frame_Progressbar"
         widget.setObjectName(source_object_name)
@@ -1354,7 +1383,7 @@ class UiModuleBase(ModuleBase):
                       **kwargs) -> UIMB:
         """ Add new module to this module and returns it. It can be a ModuleBase or UiModuleBase
 
-        Example:
+        Usage example:
             self.register_module('A Tab',  # Internal module dict key
                                  self.Widget,  # widget to replace with this module
                                  MyUiModuleType)  #  new module class
@@ -1543,7 +1572,8 @@ class UiModuleBase(ModuleBase):
 
     @classmethod
     def get_uic_classes(cls, python_or_ui_file: str) -> Tuple[Any, Type[QWidget]]:
-        """ Returns ui classes for given ui-file. If a Python file path is given, the relative ui-file-path will be used.
+        """ Returns ui classes for given ui-file.
+            If a Python file path is given, the relative ui-file-path will be used.
 
         .. code-block: python
 
@@ -1553,7 +1583,7 @@ class UiModuleBase(ModuleBase):
             :return: tuple of form class (most needed) and Qt base class from Qt Designer, e.g QMainWindow
         """
 
-        if not python_or_ui_file.endswith((".ui", ) + FILE_ENDINGS_PY_TO_UI):
+        if not python_or_ui_file.endswith((".ui", *FILE_ENDINGS_PY_TO_UI)):
             raise ValueError(f"unexpected file ending for '{python_or_ui_file}'")
 
         if python_or_ui_file.endswith(FILE_ENDINGS_PY_TO_UI):
@@ -1566,7 +1596,7 @@ class UiModuleBase(ModuleBase):
     def get_tab_stops_from_ui_file(cls, python_or_ui_file: str) -> List[str]:
         """ Returns a list of defined Tabstops in the given ui file. """
 
-        if not python_or_ui_file.endswith((".ui", ) + FILE_ENDINGS_PY_TO_UI):
+        if not python_or_ui_file.endswith((".ui", *FILE_ENDINGS_PY_TO_UI)):
             raise ValueError(f"unexpected file ending for '{python_or_ui_file}'")
 
         if python_or_ui_file.endswith(FILE_ENDINGS_PY_TO_UI):
@@ -1719,10 +1749,9 @@ class UiModuleBase(ModuleBase):
                         child.setParent(None)
                         child.deleteLater()
                     replaced_widget_item = layout.replaceWidget(self.MainWidget, frame)
-                    if replaced_widget_item is not None:
-                        if replaced_widget := replaced_widget_item.widget():
-                            layout.removeWidget(replaced_widget)
-                            replaced_widget.setParent(None)
+                    if replaced_widget_item is not None and (replaced_widget := replaced_widget_item.widget()):
+                        layout.removeWidget(replaced_widget)
+                        replaced_widget.setParent(None)
 
                     self.unload(True)
                     return
@@ -1765,9 +1794,8 @@ class UiModuleBase(ModuleBase):
         current.setParent(None)
         current.hide()
         current.deleteLater()
-        if replaced_widget_item is not None:
-            if replaced_widget := replaced_widget_item.widget():
-                layout.removeWidget(replaced_widget)
+        if replaced_widget_item is not None and (replaced_widget := replaced_widget_item.widget()):
+            layout.removeWidget(replaced_widget)
 
         # re-set the object on attribute name
         if name:

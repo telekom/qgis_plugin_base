@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # SPDX-FileCopyrightText: 2025 Deutsche Telekom Technik GmbH <f.vonstudsinske@telekom.de>
 # SPDX-License-Identifier: GPL-3.0-only
+""" Base class of the main plugin object. """
 
 import configparser
 import os
@@ -72,7 +73,12 @@ class Plugin(ModuleBase, QObject):
 
     pythonErrorLogged = pyqtSignal(name="pythonErrorLogged")
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        """ Initialize the plugin as root module of the module hierarchy.
+
+            :param args: positional arguments, not used
+            :param kwargs: keyword arguments for ModuleBase
+        """
         # default values
         kwargs.setdefault("parent", None)
         kwargs["plugin"] = self
@@ -109,7 +115,8 @@ class Plugin(ModuleBase, QObject):
         QgsSettings().remove(path)
         QgsSettings().sync()
 
-    def initGui(self):
+    def initGui(self) -> None:
+        """ Connect the QGIS GUI signals of the plugin. """
         self.connect(QGuiApplication.instance().focusObjectChanged,
                      self.__remove_basic_authentication)
 
@@ -148,10 +155,12 @@ class Plugin(ModuleBase, QObject):
                         tab.removeTab(i)
 
     @property
-    def dev_secret(self):
+    def dev_secret(self) -> str:
+        """ Return the profile option key that marks the developer mode. """
         return "Developer-Modus"
 
     def timer(self) -> QTimer:
+        """ Return the timer of the plugin. """
         return self.__timer
 
     def is_dev_mode(self):
@@ -170,11 +179,16 @@ class Plugin(ModuleBase, QObject):
         else:
             self.set_option(self.dev_secret, None)
 
-    def unload(self, self_unload: bool = False):
+    def unload(self, self_unload: bool = False) -> None:
+        """ Sync the QGIS settings and unload the plugin.
+
+            :param self_unload: only self unload, defaults to False
+        """
         QgsSettings().sync()
         return super().unload(self_unload)
 
-    def enable_update_action(self):
+    def enable_update_action(self) -> None:
+        """ Add the action to install a new plugin version and emit `updateAvailable`. """
         if self.update_action is not None:
             return
 
@@ -196,7 +210,8 @@ class Plugin(ModuleBase, QObject):
             if action.text() == self.plugin_menu_name:
                 return action.menu()
 
-    def ask_for_new_installation(self):
+    def ask_for_new_installation(self) -> None:
+        """ Ask the user to install the new plugin version or show the manual update steps. """
 
         if self.is_compiled():
 
@@ -289,8 +304,8 @@ class Plugin(ModuleBase, QObject):
 
         if os.name == "nt":
             try:
-                # try to import clr for pythonnet/.NET
-                import clr
+                # try to import clr for pythonnet/.NET; only the import availability is checked
+                import clr  # noqa: F401
                 import System
                 import System.Reflection
                 check_pythonnet = True
@@ -351,10 +366,10 @@ class Plugin(ModuleBase, QObject):
         return None
 
     def qgis_message_received_python_error(self, msg_text: str, tag: str, level: int = Qgis.MessageLevel):
-        """ per default attached with QgsMessageBar to track new messages, e.g. python errors
+        """ Per default attached with QgsMessageBar to track new messages, e.g. python errors
 
             :param msg_text: message bar text
-            :param tag message tab(tag) in Qgis
+            :param tag: message tab(tag) in Qgis
             :param level: priority level
         """
         try:
@@ -370,10 +385,7 @@ class Plugin(ModuleBase, QObject):
             if plugin_folder_name not in msg_text:
                 return False
 
-            if hasattr(sys, "last_exc"):
-                exc = sys.last_exc
-            else:
-                exc = None
+            exc = getattr(sys, "last_exc", None)
 
             cur_type = type(exc) if exc is not None else None
             cur_value = exc
@@ -397,7 +409,8 @@ class Plugin(ModuleBase, QObject):
         return False
 
     @staticmethod
-    def is_qgis_plugin():
+    def is_qgis_plugin() -> bool:
+        """ Return True, if the plugin is installed in the QGIS plugin folder. """
         return is_installed_in_qgis_plugin_folder()
 
     def get_repository_version_name(self, xml_url: str, plugin_name: str,

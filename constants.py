@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # SPDX-FileCopyrightText: 2025 Deutsche Telekom Technik GmbH <f.vonstudsinske@telekom.de>
 # SPDX-License-Identifier: GPL-3.0-only
+""" Shared constants and data classes of the plugin base. """
 
 import re
 
@@ -30,11 +31,16 @@ UPDATE_HINT_COMPILED = """
 
 
 # geometry handling
-N_NONE = 0 # no neighbor
-N_LEFT = 1 # falls line2 ein linker Nachbar von line1 ist (d.h. der Endpunkt von line2 berührt den Anfangspunkt von Line1)
-N_RIGHT = 2 # falls line2 ein rechter Nachbar von line1 ist (d.h. der Anfangspunkt von line2 berührt den Endpunkt von Line1)
-N_LEFT_REVERSED = 3 # falls line2.reverse() ein linker Nachbar von line1 ist (d.h. der Anfangspunkt von line2 berührt den Anfangspunkt
-N_RIGHT_REVERSED = 4 # falls line2.reverse() ein rechter Nachbar von line1 ist (d.h. der Endpunkt von line2 berührt den Endpunkt von
+# no neighbor
+N_NONE = 0
+# line2 is a left neighbor of line1 (end point of line2 touches start point of line1)
+N_LEFT = 1
+# line2 is a right neighbor of line1 (start point of line2 touches end point of line1)
+N_RIGHT = 2
+# line2.reverse() is a left neighbor of line1 (start point of line2 touches start point of line1)
+N_LEFT_REVERSED = 3
+# line2.reverse() is a right neighbor of line1 (end point of line2 touches end point of line1)
+N_RIGHT_REVERSED = 4
 
 # tolerances
 EPSILON = 0.000001  # default
@@ -69,6 +75,8 @@ DEFAULT_ALGORITHM_NAMES = [
 
 @dataclass
 class VersionInfo:
+    """ Version data of a plugin entry in plugins.xml. """
+
     version: packaging.version.Version
     version_str: str
     commit: str
