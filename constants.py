@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 # SPDX-FileCopyrightText: 2025 Deutsche Telekom Technik GmbH <f.vonstudsinske@telekom.de>
 # SPDX-License-Identifier: GPL-3.0-only
+""" Shared constants and data classes of the plugin base. """
 
 import re
 
 from dataclasses import dataclass
-from pkg_resources import packaging
 from typing import Optional
 from xml.sax.saxutils import escape
+
+from .version import Version
 
 
 FILE_ENDINGS_PY_TO_UI = (".py", ".cp312-win_amd64.pyd")
@@ -30,11 +32,16 @@ UPDATE_HINT_COMPILED = """
 
 
 # geometry handling
-N_NONE = 0 # no neighbor
-N_LEFT = 1 # falls line2 ein linker Nachbar von line1 ist (d.h. der Endpunkt von line2 berührt den Anfangspunkt von Line1)
-N_RIGHT = 2 # falls line2 ein rechter Nachbar von line1 ist (d.h. der Anfangspunkt von line2 berührt den Endpunkt von Line1)
-N_LEFT_REVERSED = 3 # falls line2.reverse() ein linker Nachbar von line1 ist (d.h. der Anfangspunkt von line2 berührt den Anfangspunkt
-N_RIGHT_REVERSED = 4 # falls line2.reverse() ein rechter Nachbar von line1 ist (d.h. der Endpunkt von line2 berührt den Endpunkt von
+# no neighbor
+N_NONE = 0
+# line2 is a left neighbor of line1 (end point of line2 touches start point of line1)
+N_LEFT = 1
+# line2 is a right neighbor of line1 (start point of line2 touches end point of line1)
+N_RIGHT = 2
+# line2.reverse() is a left neighbor of line1 (start point of line2 touches start point of line1)
+N_LEFT_REVERSED = 3
+# line2.reverse() is a right neighbor of line1 (end point of line2 touches end point of line1)
+N_RIGHT_REVERSED = 4
 
 # tolerances
 EPSILON = 0.000001  # default
@@ -69,16 +76,25 @@ DEFAULT_ALGORITHM_NAMES = [
 
 @dataclass
 class VersionInfo:
-    version: packaging.version.Version
+    """ Version data of a plugin entry in plugins.xml. """
+
+    version: Version
     version_str: str
     commit: str
-    qgis_minimum_version: Optional[packaging.version.Version]
-    qgis_maximum_version: Optional[packaging.version.Version]
+    qgis_minimum_version: Optional[Version]
+    qgis_maximum_version: Optional[Version]
 
 
-@dataclass
-class VersionError:
-    error: str
+class VersionError(Exception):
+    """ Error of the plugin version lookup; the message is available via `error`. """
+
+    def __init__(self, error: str) -> None:
+        """ Create the error.
+
+            :param error: error text
+        """
+        super().__init__(error)
+        self.error = error
 
 
 # pyqt

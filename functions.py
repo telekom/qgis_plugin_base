@@ -171,9 +171,18 @@ def get_test_folders(root_folder: Union[str, Path], ends_with: Optional[List[str
     if ends_with is None:
         ends_with = ["tests"]
 
-    test_folders = [folder.as_posix() for folder in root_folder.glob("**/*")
-                    if folder.is_dir() and folder.name.endswith(tuple(ends_with))
-                        and not file_matches_pattern(folder, root_folder, ignore_paths)]
+    root_folder = Path(root_folder)
+    test_folders = []
+    for folder in root_folder.glob("**/*"):
+        if not folder.is_dir() or not folder.name.endswith(tuple(ends_with)):
+            continue
+
+        relative_folder = folder.relative_to(root_folder)
+        if any(part.startswith(".") for part in relative_folder.parts):
+            continue
+
+        if not file_matches_pattern(folder, root_folder, ignore_paths):
+            test_folders.append(folder.as_posix())
 
     return test_folders
 

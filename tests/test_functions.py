@@ -61,6 +61,19 @@ def test_get_test_folders(ends_with, ignore_list, result_count):
             "Returned path count not matches the expected path count"
 
 
+def test_get_test_folders_ignores_dot_directories():
+    with tempfile.TemporaryDirectory() as tempdir:
+        temp_dir = Path(tempdir)
+
+        normal_tests = temp_dir / "normal" / "tests"
+        normal_tests.mkdir(parents=True)
+
+        hidden_tests = temp_dir / ".venv" / "package" / "tests"
+        hidden_tests.mkdir(parents=True)
+
+        assert get_test_folders(temp_dir, ends_with=["tests"]) == [normal_tests.as_posix()]
+
+
 @pytest.mark.parametrize("file,root_dir,input_list,expected_result",
                          [
                              (ROOT_DIR / "basics.py", ROOT_DIR, ["basics.py"], True),
