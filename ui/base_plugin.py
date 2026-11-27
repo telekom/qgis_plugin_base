@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: 2025 Deutsche Telekom Technik GmbH <f.vonstudsinske@telekom.de>
 # SPDX-License-Identifier: GPL-3.0-only
 
+import configparser
 import os
 import os.path
 import sys
@@ -26,15 +27,18 @@ from qgis.PyQt.QtCore import (QObject, pyqtSignal, QTimer, Qt)
 
 from qgis.PyQt.QtWidgets import (QMessageBox, QTabWidget, QMenu)
 from qgis.PyQt.QtGui import QGuiApplication
+from qgis.PyQt.QtNetwork import QNetworkReply
+from qgis.PyQt.QtXml import QDomDocument
 
 from qgis.gui import QgsVertexMarker, QgsRubberBand
-from qgis.core import (QgsSettings, QgsError, Qgis, QgsApplication)
+from qgis.core import (QgsSettings, Qgis, QgsApplication)
 
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Tuple
 
 from .functions import get_expected_plugin_folder_name, is_installed_in_qgis_plugin_folder, get_expected_plugin_path
 from .base_class import ModuleBase
-from ..constants import UPDATE_HINT_COMPILED
+from ..constants import UPDATE_HINT_COMPILED, VersionInfo, VersionError
+from ..qgis.qgis_network_requests import get
 
 
 class Plugin(ModuleBase, QObject):
@@ -51,8 +55,8 @@ class Plugin(ModuleBase, QObject):
 
                 # deactivate
                 plugin.set_dev_mode(False)
-
     """
+
     # signals to catch added/unloaded submodules somewhere in this plugin
     submoduleAdded = pyqtSignal(object, object, name="submoduleAdded")
     submoduleUnloaded = pyqtSignal(object, object, name="submoduleUnloaded")
@@ -178,7 +182,7 @@ class Plugin(ModuleBase, QObject):
             return
 
         self.update_action = self.add_action(
-            f"Neue Version installieren",
+            "Neue Version installieren",
             self.getThemeIcon("propertyicons/plugin-upgrade.svg"),
             lambda: self.ask_for_new_installation(),
             tool_tip="Plugin aktualisieren")
@@ -251,8 +255,7 @@ class Plugin(ModuleBase, QObject):
         return release_info
 
     def install_new_version(self):
-        """
-        Install a new version based on the current available plugin.
+        """ Install a new version based on the current available plugin.
 
         .. code-block:: python
 
@@ -374,7 +377,7 @@ class Plugin(ModuleBase, QObject):
                 exc = sys.last_exc
             else:
                 exc = None
-                
+
             cur_type = type(exc) if exc is not None else None
             cur_value = exc
             cur_traceback = exc.__traceback__ if exc is not None else None
@@ -399,3 +402,122 @@ class Plugin(ModuleBase, QObject):
     @staticmethod
     def is_qgis_plugin():
         return is_installed_in_qgis_plugin_folder()
+
+    def get_repository_version_name(self, xml_url: str, plugin_name: str,
+                                    auth_cfg: str = "") -> Tuple[Optional[packaging.version.Version], str]:
+        """ Reads plugins.xml content and returns version number from given plugin.
+
+            :param xml_url: web url
+            :param plugin_name: name of plugin
+            :param auth_cfg: optional QGIS authentication configuration ID
+            :returns: version/None and error text
+            :raises VersionError: if `auth_cfg` is set but unknown to QGIS
+        """
+        self._validate_auth_cfg(auth_cfg)
+
+        response = get(xml_url, authCfg=auth_cfg)
+        if response.error() != QNetworkReply.NoError or response.status_code != 200:
+            return None, self._network_error(response)
+
+        return self.get_version_from_xml(response.content, plugin_name)
+
+    def get_repository_version_zipname(self, xml_url: str, zip_file: str,
+                                       auth_cfg: str = "") -> Union[VersionInfo, VersionError]:
+        """ Reads plugins.xml content and returns version info from given zip file name.
+
+            :param xml_url: web url
+            :param zip_file: zip file name (e.g. "plugin.zip")
+            :param auth_cfg: optional QGIS authentication configuration ID
+            :returns: VersionInfo or VersionError (not raised) for network errors or unknown plugins
+            :raises VersionError: if `auth_cfg` is set but unknown to QGIS
+        """
+        self._validate_auth_cfg(auth_cfg)
+
+        response = get(xml_url, authCfg=auth_cfg)
+        if response.error() != QNetworkReply.NoError or response.status_code != 200:
+            return VersionError(self._network_error(response))
+
+        return self.get_version_info_from_xml(response.content, zip_file)
+
+    def _validate_auth_cfg(self, auth_cfg: str) -> None:
+        if auth_cfg and auth_cfg not in QgsApplication.authManager().configIds():
+            error = (f"Die QGIS-Authentifizierungskonfiguration '{auth_cfg}' ist nicht vorhanden. "
+                     "Bitte importiere oder erstelle die Authentifizierungskonfiguration in QGIS.")
+            self.log(error, level=self.WARNING)
+            raise VersionError(error)
+
+    @staticmethod
+    def _network_error(response) -> str:
+        return ("Bei der Abfrage ist ein Fehler aufgetreten.\n"
+                f"HTTP-Status: {response.status_code}\n"
+                f"Fehler: {response.errorString()}")
+
+    @staticmethod
+    def get_version_from_xml(xml_content: bytes,
+                             plugin_name: str) -> Tuple[Optional[packaging.version.Version], str]:
+        """ Returns the version of the given plugin name from the plugins.xml content and an error text. """
+        document = QDomDocument()
+        document.setContent(xml_content, False)
+
+        plugin_nodes = document.elementsByTagName("pyqgis_plugin")
+        for i in range(plugin_nodes.size()):
+            element = plugin_nodes.item(i).toElement()
+            if element.attribute("name") == plugin_name:
+                return packaging.version.parse(element.attribute("version")), ""
+
+        return None, f"plugin '{plugin_name}' not found on xml_content"
+
+    @staticmethod
+    def get_version_info_from_xml(xml_content: bytes, zip_file_name: str) -> Union[VersionInfo, VersionError]:
+        """ Returns the VersionInfo of the given zip file name from the plugins.xml content. """
+        document = QDomDocument()
+        document.setContent(xml_content, False)
+
+        plugin_nodes = document.elementsByTagName("pyqgis_plugin")
+        for i in range(plugin_nodes.size()):
+            element = plugin_nodes.item(i).toElement()
+            if element.firstChildElement("file_name").text().strip() != zip_file_name:
+                continue
+
+            qgis_minimum_version = element.firstChildElement("qgis_minimum_version").text().strip()
+            if qgis_minimum_version:
+                qgis_minimum_version = packaging.version.parse(qgis_minimum_version)
+            qgis_maximum_version = element.firstChildElement("qgis_maximum_version").text().strip()
+            if qgis_maximum_version:
+                qgis_maximum_version = packaging.version.parse(qgis_maximum_version)
+
+            version_obj = packaging.version.parse(element.attribute("version"))
+            commit = element.firstChildElement("commit").text().strip()
+            return VersionInfo(version_obj, str(version_obj), commit, qgis_minimum_version, qgis_maximum_version)
+
+        return VersionError(f"plugin '{zip_file_name}' not found")
+
+    @staticmethod
+    def get_meta_value(metadata_path: str, key: str) -> str:
+        """ Reads a value from the 'general' section of metadata.txt; raises KeyError if missing. """
+        config = configparser.ConfigParser()
+        config.read(metadata_path, encoding='utf-8')
+        return config['general'][key]
+
+    @staticmethod
+    def get_local_version(metadata_path: str) -> packaging.version.Version:
+        """ Reads the local plugin version from metadata.txt. """
+        return packaging.version.parse(Plugin.get_meta_value(metadata_path, 'version'))
+
+    @staticmethod
+    def get_local_zipname(metadata_path: str) -> str:
+        """ Reads the zip file name from metadata.txt. """
+        return Plugin.get_meta_value(metadata_path, 'zipFilename')
+
+    @staticmethod
+    def get_local_xml_url(metadata_path: str) -> str:
+        """ Reads the url to the plugins.xml repository from metadata.txt. """
+        return Plugin.get_meta_value(metadata_path, 'pluginXmlUrl')
+
+    @staticmethod
+    def get_local_repository_authcfg(metadata_path: str) -> str:
+        """ Returns the optional repository authcfg ID from metadata.txt (empty if missing). """
+        try:
+            return Plugin.get_meta_value(metadata_path, "pluginRepositoryAuthcfg").strip()
+        except KeyError:
+            return ""

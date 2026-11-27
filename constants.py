@@ -76,12 +76,12 @@ class VersionInfo:
     qgis_maximum_version: Optional[packaging.version.Version]
 
 
-@dataclass
 class VersionError(Exception):
-    error: str
+    """Error of the plugin version lookup; the message is available via `error`."""
 
-    def __post_init__(self):
-        super().__init__(self.error)
+    def __init__(self, error: str):  # noqa: D107
+        super().__init__(error)
+        self.error = error
 
 
 # pyqt
