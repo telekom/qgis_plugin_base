@@ -77,9 +77,13 @@ class VersionInfo:
 
 
 class VersionError(Exception):
-    """Error of the plugin version lookup; the message is available via `error`."""
+    """ Error of the plugin version lookup; the message is available via `error`. """
 
-    def __init__(self, error: str):  # noqa: D107
+    def __init__(self, error: str) -> None:
+        """ Create the error.
+
+            :param error: error text
+        """
         super().__init__(error)
         self.error = error
 

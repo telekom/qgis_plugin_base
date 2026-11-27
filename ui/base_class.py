@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 
 import configparser
+import contextlib
 import inspect
 import json
 import logging
@@ -10,42 +11,31 @@ import os.path
 import sip
 import sys
 import time
-import contextlib
-
-from re import fullmatch, escape, search
 
 from pathlib import Path
 from pkg_resources import packaging
-
-from qgis.PyQt.QtCore import (QMetaObject, QObject, pyqtBoundSignal, pyqtSignal,
-                              QTranslator, QCoreApplication, QUrl)
-from qgis.PyQt.QtXml import QDomDocument, QDomElement
-
-from qgis.PyQt.QtWidgets import (QAction, QWidget, QFrame, QLabel, QApplication,
-                                 QGridLayout, QToolBar, QMainWindow, QComboBox,
-                                 QMessageBox, QPushButton, QToolTip, QLineEdit,
-                                 QCheckBox, QSpinBox, QListWidget, QTreeWidget,
-                                 QTableWidget, QTextBrowser, QTextEdit, QListView,
-                                 QTreeView, QTableView, QRadioButton, QToolButton, QMenu)
-from qgis.PyQt.QtGui import QIcon, QCursor, QDesktopServices
-from qgis.PyQt import uic
 from pyplugin_installer import installer as pyplugin_installer
-
+from qgis.core import Qgis, QgsApplication, QgsLocatorFilter, QgsMapLayer, QgsNetworkAccessManager, QgsSettings
 from qgis.gui import QgisInterface, QgsFileWidget
-from qgis.core import (QgsApplication, QgsMapLayer, QgsNetworkAccessManager,
-                       QgsSettings, QgsLocatorFilter, Qgis)
-
-from typing import Any, Type, Dict, Callable, List, Tuple, Union, Optional
-
+from qgis.PyQt import uic
+from qgis.PyQt.QtCore import (pyqtBoundSignal, pyqtSignal, QCoreApplication, QMetaObject, QObject, QTranslator,
+                              QUrl)
+from qgis.PyQt.QtGui import QCursor, QDesktopServices, QIcon
+from qgis.PyQt.QtWidgets import (QAction, QApplication, QCheckBox, QComboBox, QFrame, QGridLayout, QLabel,
+                                 QLineEdit, QListView, QListWidget, QMainWindow, QMenu, QMessageBox,
+                                 QPushButton, QRadioButton, QSpinBox, QTableView, QTableWidget, QTextBrowser,
+                                 QTextEdit, QToolBar, QToolButton, QToolTip, QTreeView, QTreeWidget, QWidget)
+from qgis.PyQt.QtXml import QDomDocument, QDomElement
+from re import fullmatch, search
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 from xml.sax.saxutils import escape
-from .typing_ import MB, UIMB, PLUGIN
-from .base_logging import Logging
-from .signal_connection import Connection
 
+from .base_logging import Logging
+from .functions import get_expected_plugin_folder_name, get_relative_path
+from .signal_connection import Connection
+from .typing_ import MB, PLUGIN, UIMB
 from .widgets import apply_widget_options, is_widget_compatible
-from .functions import get_expected_plugin_folder_name, get_relative_path, get_ui_class
-from ..constants import (FILE_ENDINGS_PY_TO_UI, FILE_ENDINGS_RE_COMPILED,
-                         ACCESSIBILITY_DEFAULT_COLOR)
+from ..constants import ACCESSIBILITY_DEFAULT_COLOR, FILE_ENDINGS_PY_TO_UI
 from ..qgis.functions import get_qgis_setting
 from ..qgis.qgis_env import activate_processing_plugin
 
@@ -704,7 +694,8 @@ class ModuleBase(Logging):
                     f"{plugin_menu} v{version} - Fehler",
                     "Bei der Abfrage der Online-Version ist ein Fehler aufgetreten.\n\n"
                     f"{error}\n\n"
-                    "Bitte stelle sicher, dass du mit dem Firmennetz verbunden bist.\n"
+                    "Bitte stelle sicher, dass du mit dem Firmennetz verbunden bist "
+                    "und die Authentifizierung in QGIS eingerichtet ist.\n"
                     "Sollte sich keine Lösung finden, wende dich bitte an den Support über 'Feedback'"
                 )
             return False

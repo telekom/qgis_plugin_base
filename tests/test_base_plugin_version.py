@@ -1,18 +1,21 @@
 # -*- coding: utf-8 -*-
 # SPDX-FileCopyrightText: 2025 Deutsche Telekom Technik GmbH <f.vonstudsinske@telekom.de>
 # SPDX-License-Identifier: GPL-3.0-only
+""" Tests for the plugin version lookup and the version error dialog. """
 
 import logging
+import pytest
+
+from pathlib import Path
+from pkg_resources import packaging
+from qgis.PyQt.QtNetwork import QNetworkReply
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-import pytest
-from pkg_resources import packaging
-from qgis.PyQt.QtNetwork import QNetworkReply
-
-from ..ui import base_plugin
+from ..constants import VersionError, VersionInfo
+from ..ui import base_class, base_plugin
+from ..ui.base_class import ModuleBase
 from ..ui.base_plugin import Plugin
-from ..constants import VersionInfo, VersionError
 
 TEST_XML = b"""<plugins>
   <pyqgis_plugin version="2.1.2" name="Plugin Template">
@@ -43,29 +46,40 @@ XML_URL = "https://test.url.de/plugins.xml"
 
 
 @pytest.fixture()
-def plugin():
-    """Plugin without __init__ (no QGIS interface needed) and a mocked plugin logger."""
+def plugin() -> Plugin:
+    """ Return a Plugin without __init__ (no QGIS interface needed) and with a mocked plugin logger. """
     instance = Plugin.__new__(Plugin)
     instance.log = Mock()
     return instance
 
 
 @pytest.fixture()
-def auth_ids(monkeypatch):
-    """Replaces the native QGIS auth manager with a configurable list of authcfg IDs."""
+def auth_ids(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """ Replace the native QGIS auth manager and return its configurable list of authcfg IDs.
+
+        :param monkeypatch: pytest monkeypatch fixture
+    """
     ids = []
     auth_manager = SimpleNamespace(configIds=lambda: ids)
     monkeypatch.setattr(base_plugin, "QgsApplication", SimpleNamespace(authManager=lambda: auth_manager))
     return ids
 
 
-def _response(error=QNetworkReply.NoError, status_code=200, content=TEST_XML, error_string=""):
+def _response(error: QNetworkReply.NetworkError = QNetworkReply.NoError, status_code: int = 200,
+              content: bytes = TEST_XML, error_string: str = "") -> SimpleNamespace:
+    """ Return a fake network response with the interface used by the version lookup.
+
+        :param error: Qt network error code
+        :param status_code: HTTP status code
+        :param content: response body
+        :param error_string: network error text
+    """
     return SimpleNamespace(error=lambda: error, status_code=status_code, content=content,
                            errorString=lambda: error_string)
 
 
-def test_version_error_is_plain_exception():
-    """VersionError is a plain exception that keeps the error text."""
+def test_version_error_is_plain_exception() -> None:
+    """ VersionError is a plain exception that keeps the error text. """
     error = VersionError("text")
 
     assert isinstance(error, Exception)
@@ -73,8 +87,8 @@ def test_version_error_is_plain_exception():
     assert str(error) == "text"
 
 
-def test_get_version_from_xml():
-    """Finds versions by plugin name."""
+def test_get_version_from_xml() -> None:
+    """ Find versions by plugin name. """
     assert Plugin.get_version_from_xml(TEST_XML, "Plugin Template") == (packaging.version.parse("2.1.2"), "")
     assert Plugin.get_version_from_xml(TEST_XML, "Plugin 1") == (packaging.version.parse("1.0.0"), "")
 
@@ -82,8 +96,8 @@ def test_get_version_from_xml():
     assert version is None and error.endswith(" not found on xml_content")
 
 
-def test_get_version_info_from_xml():
-    """Finds version info by zip file name."""
+def test_get_version_info_from_xml() -> None:
+    """ Find version info by zip file name. """
     expected = VersionInfo(packaging.version.parse("2.1.2"), "2.1.2", "12852478",
                            packaging.version.parse("3.34.6"), packaging.version.parse("3.40.99"))
     assert Plugin.get_version_info_from_xml(TEST_XML, "plugin_template.zip") == expected
@@ -92,8 +106,11 @@ def test_get_version_info_from_xml():
     assert isinstance(error, VersionError) and error.error.endswith(" not found")
 
 
-def test_get_local_metadata_values(tmp_path):
-    """Reads metadata values statically, i.e. before Plugin.__init__."""
+def test_get_local_metadata_values(tmp_path: Path) -> None:
+    """ Read metadata values statically, i.e. before Plugin.__init__.
+
+        :param tmp_path: pytest temporary directory fixture
+    """
     metadata_path = tmp_path / "metadata.txt"
     metadata_path.write_text("[general]\nversion=1.2.3\nzipFilename=plugin.zip\npluginXmlUrl=https://x\n",
                              encoding="utf-8")
@@ -110,8 +127,13 @@ def test_get_local_metadata_values(tmp_path):
     ("[general]\npluginRepositoryAuthcfg=\n", ""),
     ("[general]\npluginRepositoryAuthcfg=auth-id\n", "auth-id"),
 ])
-def test_get_local_repository_authcfg(tmp_path, metadata, expected):
-    """Reads an optional authcfg, defaulting to an empty value."""
+def test_get_local_repository_authcfg(tmp_path: Path, metadata: str, expected: str) -> None:
+    """ Read an optional authcfg, defaulting to an empty value.
+
+        :param tmp_path: pytest temporary directory fixture
+        :param metadata: content of metadata.txt
+        :param expected: expected authcfg ID
+    """
     metadata_path = tmp_path / "metadata.txt"
     metadata_path.write_text(metadata, encoding="utf-8")
 
@@ -123,12 +145,26 @@ def test_get_local_repository_authcfg(tmp_path, metadata, expected):
     ("get_repository_version_zipname", "plugin_template.zip"),
 ])
 @pytest.mark.parametrize("auth_cfg", ["", "auth-id"])
-def test_repository_version_passes_authcfg(monkeypatch, plugin, auth_ids, method, plugin_ref, auth_cfg):
-    """Passes the (optional) authcfg ID to the GET request."""
+def test_repository_version_passes_authcfg(monkeypatch: pytest.MonkeyPatch, plugin: Plugin, auth_ids: list[str],
+                                          method: str, plugin_ref: str, auth_cfg: str) -> None:
+    """ Pass the (optional) authcfg ID to the GET request.
+
+        :param monkeypatch: pytest monkeypatch fixture
+        :param plugin: plugin with mocked logger
+        :param auth_ids: configurable authcfg IDs known to QGIS
+        :param method: name of the lookup method
+        :param plugin_ref: plugin name or zip file name
+        :param auth_cfg: authcfg ID to pass
+    """
     auth_ids.append("auth-id")
     requests = []
 
-    def get_mock(url, **kwargs):
+    def get_mock(url: str, **kwargs: object) -> SimpleNamespace:
+        """ Record the request and return a successful response.
+
+            :param url: requested url
+            :param kwargs: request keyword arguments
+        """
         requests.append((url, kwargs))
         return _response()
 
@@ -145,11 +181,24 @@ def test_repository_version_passes_authcfg(monkeypatch, plugin, auth_ids, method
     ("get_repository_version_name", "Plugin Template"),
     ("get_repository_version_zipname", "plugin_template.zip"),
 ])
-def test_repository_version_rejects_unknown_authcfg(monkeypatch, plugin, auth_ids, method, plugin_ref):
-    """Rejects unknown authcfg IDs before any request and logs a warning via the plugin logger."""
+def test_repository_version_rejects_unknown_authcfg(monkeypatch: pytest.MonkeyPatch, plugin: Plugin,
+                                                    auth_ids: list[str], method: str, plugin_ref: str) -> None:
+    """ Reject unknown authcfg IDs before any request and log a warning via the plugin logger.
+
+        :param monkeypatch: pytest monkeypatch fixture
+        :param plugin: plugin with mocked logger
+        :param auth_ids: configurable authcfg IDs known to QGIS
+        :param method: name of the lookup method
+        :param plugin_ref: plugin name or zip file name
+    """
     auth_ids.append("known-id")
 
-    def get_mock(*args, **kwargs):
+    def get_mock(*args: object, **kwargs: object) -> None:
+        """ Fail the test, because no request is expected.
+
+            :param args: request arguments
+            :param kwargs: request keyword arguments
+        """
         pytest.fail("No request should be sent for an unknown authcfg")
 
     monkeypatch.setattr(base_plugin, "get", get_mock)
@@ -165,8 +214,17 @@ def test_repository_version_rejects_unknown_authcfg(monkeypatch, plugin, auth_id
     (QNetworkReply.NoError, 401, "unauthorized"),
     (QNetworkReply.ConnectionRefusedError, 503, "upstream unavailable"),
 ])
-def test_repository_version_reports_http_error(monkeypatch, plugin, error, status_code, error_string):
-    """Includes HTTP status and network error text in both lookup results."""
+def test_repository_version_reports_http_error(monkeypatch: pytest.MonkeyPatch, plugin: Plugin,
+                                               error: QNetworkReply.NetworkError, status_code: int,
+                                               error_string: str) -> None:
+    """ Include HTTP status and network error text in both lookup results.
+
+        :param monkeypatch: pytest monkeypatch fixture
+        :param plugin: plugin with mocked logger
+        :param error: Qt network error code
+        :param status_code: HTTP status code
+        :param error_string: network error text
+    """
     response = _response(error=error, status_code=status_code, error_string=error_string)
     monkeypatch.setattr(base_plugin, "get", lambda url, **kwargs: response)
 
@@ -177,3 +235,22 @@ def test_repository_version_reports_http_error(monkeypatch, plugin, error, statu
     version, text = plugin.get_repository_version_name(XML_URL, "Plugin")
     assert version is None
     assert str(status_code) in text and error_string in text
+
+
+def test_version_error_dialog_mentions_authentication(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ Show a hint on network connection and QGIS authentication when the version lookup failed.
+
+        :param monkeypatch: pytest monkeypatch fixture
+    """
+    plugin_data = SimpleNamespace(repo_version=None, repo_version_error="HTTP-Status: 401", plugin_version="1.0.0",
+                                  commit=None, repo_commit=None, plugin_menu_name="Plugin",
+                                  get_release_info=lambda: "Testversion")
+    module = SimpleNamespace(get_plugin=lambda: plugin_data, log=Mock(), mainWindow=lambda: None, ERROR=logging.ERROR)
+    warning = Mock()
+    monkeypatch.setattr(base_class, "QMessageBox", SimpleNamespace(warning=warning))
+
+    assert ModuleBase.set_ui_version_info(module) is False
+
+    text = warning.call_args.args[2]
+    assert "HTTP-Status: 401" in text
+    assert "Firmennetz" in text and "Authentifizierung in QGIS" in text

@@ -22,23 +22,20 @@ else:
 
 from pathlib import Path
 from pkg_resources import packaging
-
-from qgis.PyQt.QtCore import (QObject, pyqtSignal, QTimer, Qt)
-
-from qgis.PyQt.QtWidgets import (QMessageBox, QTabWidget, QMenu)
+from qgis.core import Qgis, QgsApplication, QgsSettings
+from qgis.gui import QgsRubberBand, QgsVertexMarker
+from qgis.PyQt.QtCore import pyqtSignal, QObject, Qt, QTimer
 from qgis.PyQt.QtGui import QGuiApplication
 from qgis.PyQt.QtNetwork import QNetworkReply
+from qgis.PyQt.QtWidgets import QMenu, QMessageBox, QTabWidget
 from qgis.PyQt.QtXml import QDomDocument
+from typing import List, Optional, Tuple, Union
 
-from qgis.gui import QgsVertexMarker, QgsRubberBand
-from qgis.core import (QgsSettings, Qgis, QgsApplication)
-
-from typing import List, Union, Optional, Tuple
-
-from .functions import get_expected_plugin_folder_name, is_installed_in_qgis_plugin_folder, get_expected_plugin_path
 from .base_class import ModuleBase
-from ..constants import UPDATE_HINT_COMPILED, VersionInfo, VersionError
+from .functions import get_expected_plugin_folder_name, get_expected_plugin_path, is_installed_in_qgis_plugin_folder
+from ..constants import UPDATE_HINT_COMPILED, VersionError, VersionInfo
 from ..qgis.qgis_network_requests import get
+from ..qgis.qgis_requests_response import QgisResponse
 
 
 class Plugin(ModuleBase, QObject):
@@ -405,13 +402,13 @@ class Plugin(ModuleBase, QObject):
 
     def get_repository_version_name(self, xml_url: str, plugin_name: str,
                                     auth_cfg: str = "") -> Tuple[Optional[packaging.version.Version], str]:
-        """ Reads plugins.xml content and returns version number from given plugin.
+        """ Read plugins.xml and return the version and an error text for the given plugin name.
 
-            :param xml_url: web url
-            :param plugin_name: name of plugin
+            :param xml_url: web url of plugins.xml
+            :param plugin_name: name of the plugin
             :param auth_cfg: optional QGIS authentication configuration ID
-            :returns: version/None and error text
-            :raises VersionError: if `auth_cfg` is set but unknown to QGIS
+
+            :return: version or None and an error text; raises VersionError if `auth_cfg` is unknown to QGIS
         """
         self._validate_auth_cfg(auth_cfg)
 
@@ -423,13 +420,14 @@ class Plugin(ModuleBase, QObject):
 
     def get_repository_version_zipname(self, xml_url: str, zip_file: str,
                                        auth_cfg: str = "") -> Union[VersionInfo, VersionError]:
-        """ Reads plugins.xml content and returns version info from given zip file name.
+        """ Read plugins.xml and return the version info for the given zip file name.
 
-            :param xml_url: web url
+            :param xml_url: web url of plugins.xml
             :param zip_file: zip file name (e.g. "plugin.zip")
             :param auth_cfg: optional QGIS authentication configuration ID
-            :returns: VersionInfo or VersionError (not raised) for network errors or unknown plugins
-            :raises VersionError: if `auth_cfg` is set but unknown to QGIS
+
+            :return: VersionInfo, or a returned (not raised) VersionError for network errors and unknown plugins;
+                raises VersionError if `auth_cfg` is unknown to QGIS
         """
         self._validate_auth_cfg(auth_cfg)
 
@@ -440,6 +438,10 @@ class Plugin(ModuleBase, QObject):
         return self.get_version_info_from_xml(response.content, zip_file)
 
     def _validate_auth_cfg(self, auth_cfg: str) -> None:
+        """ Log a warning and raise VersionError if a set authcfg ID is unknown to QGIS.
+
+            :param auth_cfg: optional QGIS authentication configuration ID
+        """
         if auth_cfg and auth_cfg not in QgsApplication.authManager().configIds():
             error = (f"Die QGIS-Authentifizierungskonfiguration '{auth_cfg}' ist nicht vorhanden. "
                      "Bitte importiere oder erstelle die Authentifizierungskonfiguration in QGIS.")
@@ -447,7 +449,11 @@ class Plugin(ModuleBase, QObject):
             raise VersionError(error)
 
     @staticmethod
-    def _network_error(response) -> str:
+    def _network_error(response: QgisResponse) -> str:
+        """ Return an error text with HTTP status and network error text.
+
+            :param response: response of the failed request
+        """
         return ("Bei der Abfrage ist ein Fehler aufgetreten.\n"
                 f"HTTP-Status: {response.status_code}\n"
                 f"Fehler: {response.errorString()}")
@@ -455,7 +461,11 @@ class Plugin(ModuleBase, QObject):
     @staticmethod
     def get_version_from_xml(xml_content: bytes,
                              plugin_name: str) -> Tuple[Optional[packaging.version.Version], str]:
-        """ Returns the version of the given plugin name from the plugins.xml content and an error text. """
+        """ Return the version of the given plugin name from the plugins.xml content and an error text.
+
+            :param xml_content: content of plugins.xml
+            :param plugin_name: name of the plugin
+        """
         document = QDomDocument()
         document.setContent(xml_content, False)
 
@@ -469,7 +479,11 @@ class Plugin(ModuleBase, QObject):
 
     @staticmethod
     def get_version_info_from_xml(xml_content: bytes, zip_file_name: str) -> Union[VersionInfo, VersionError]:
-        """ Returns the VersionInfo of the given zip file name from the plugins.xml content. """
+        """ Return the VersionInfo of the given zip file name from the plugins.xml content or a VersionError.
+
+            :param xml_content: content of plugins.xml
+            :param zip_file_name: zip file name (e.g. "plugin.zip")
+        """
         document = QDomDocument()
         document.setContent(xml_content, False)
 
@@ -494,29 +508,45 @@ class Plugin(ModuleBase, QObject):
 
     @staticmethod
     def get_meta_value(metadata_path: str, key: str) -> str:
-        """ Reads a value from the 'general' section of metadata.txt; raises KeyError if missing. """
+        """ Return a value from the 'general' section of metadata.txt; raises KeyError if missing.
+
+            :param metadata_path: path to metadata.txt
+            :param key: key in the 'general' section
+        """
         config = configparser.ConfigParser()
         config.read(metadata_path, encoding='utf-8')
         return config['general'][key]
 
     @staticmethod
     def get_local_version(metadata_path: str) -> packaging.version.Version:
-        """ Reads the local plugin version from metadata.txt. """
+        """ Return the local plugin version from metadata.txt.
+
+            :param metadata_path: path to metadata.txt
+        """
         return packaging.version.parse(Plugin.get_meta_value(metadata_path, 'version'))
 
     @staticmethod
     def get_local_zipname(metadata_path: str) -> str:
-        """ Reads the zip file name from metadata.txt. """
+        """ Return the zip file name from metadata.txt.
+
+            :param metadata_path: path to metadata.txt
+        """
         return Plugin.get_meta_value(metadata_path, 'zipFilename')
 
     @staticmethod
     def get_local_xml_url(metadata_path: str) -> str:
-        """ Reads the url to the plugins.xml repository from metadata.txt. """
+        """ Return the url of the plugins.xml repository from metadata.txt.
+
+            :param metadata_path: path to metadata.txt
+        """
         return Plugin.get_meta_value(metadata_path, 'pluginXmlUrl')
 
     @staticmethod
     def get_local_repository_authcfg(metadata_path: str) -> str:
-        """ Returns the optional repository authcfg ID from metadata.txt (empty if missing). """
+        """ Return the optional repository authcfg ID from metadata.txt (empty if missing).
+
+            :param metadata_path: path to metadata.txt
+        """
         try:
             return Plugin.get_meta_value(metadata_path, "pluginRepositoryAuthcfg").strip()
         except KeyError:
